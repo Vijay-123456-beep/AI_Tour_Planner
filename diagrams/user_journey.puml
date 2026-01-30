@@ -1,0 +1,101 @@
+@startuml AI Tour Planner - User Journey
+
+!define RECTANGLE class
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam classFontSize 11
+skinparam classFontStyle normal
+skinparam classFontColor #333333
+skinparam roundCorner 8
+
+' Colors
+defaultTextAlignment center
+skinparam ArrowColor #666666
+skinparam ArrowThickness 1.5
+
+' User Journey Steps
+rectangle "1. Onboarding" as step1 #E3F2FD {
+  [Sign Up/Login] as signup
+  [Set Preferences] as prefs
+  signup -[hidden]d- prefs
+}
+
+rectangle "2. Trip Planning" as step2 #E8F5E9 {
+  [Enter Destination] as dest
+  [Set Dates] as dates
+  [Add Travelers] as travelers
+  [Set Budget] as budget
+  
+  dest -[hidden]d- dates
+  dates -[hidden]d- travelers
+  travelers -[hidden]d- budget
+}
+
+rectangle "3. Itinerary Generation" as step3 #FFF3E0 {
+  [AI Generates Options] as generate
+  [Review & Customize] as review
+  [Add Activities] as activities
+  
+  generate -[hidden]d- review
+  review -[hidden]d- activities
+}
+
+rectangle "4. Collaboration" as step4 #F3E5F5 {
+  [Invite Travel Mates] as invite
+  [Split Costs] as split
+  [Group Chat] as chat
+  
+  invite -[hidden]d- split
+  split -[hidden]d- chat
+}
+
+rectangle "5. During Trip" as step5 #FCE4EC {
+  [Real-time Updates] as updates
+  [Navigation] as nav
+  [Emergency Alerts] as alerts
+  
+  updates -[hidden]d- nav
+  nav -[hidden]d- alerts
+}
+
+rectangle "6. Post-Trip" as step6 #E8EAF6 {
+  [Share Experience] as share
+  [Leave Reviews] as reviews
+  [Save Memories] as memories
+  
+  share -[hidden]d- reviews
+  reviews -[hidden]d- memories
+}
+
+' Connections
+step1 --> step2 : Next
+step2 --> step3 : Generate
+step3 --> step4 : Collaborate
+step4 --> step5 : Start Trip
+step5 --> step6 : Complete
+
+' Legend
+legend right
+  <b>User Journey Map</b>\n\n
+  <b>Journey Phases:</b>
+  --
+  <color:#E3F2FD>1. Onboarding</color> - User registration and setup
+  <color:#E8F5E9>2. Trip Planning</color> - Define trip parameters
+  <color:#FFF3E0>3. Itinerary</color> - AI-powered planning
+  <color:#F3E5F5>4. Collaboration</color> - Social features
+  <color:#FCE4EC>5. During Trip</color> - Real-time assistance
+  <color:#E8EAF6>6. Post-Trip</color> - Sharing and feedback
+  \n
+  <b>User Goals:</b>
+  --
+  • Easy setup and personalization
+  • Smart, automated planning
+  • Seamless collaboration
+  • Stress-free travel experience
+  • Memory preservation
+endlegend
+
+@enduml
