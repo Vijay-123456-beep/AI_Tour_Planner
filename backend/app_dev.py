@@ -1297,8 +1297,10 @@ def create_app():
     
     return app
 
+# Create global app instance for Gunicorn
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
     print("[INFO] Starting AI Tour Planner Backend")
     print(f"[INFO] Server running primarily on http://localhost:5000")
     print("---------------------------------------------------")
