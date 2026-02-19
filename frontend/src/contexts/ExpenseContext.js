@@ -20,7 +20,7 @@ export const ExpenseProvider = ({ children }) => {
 
         // Try to fetch from backend
         try {
-            api.get('/expenses/').then(response => {
+            api.get('/expenses').then(response => {
                 if (response.data.success && response.data.data.length > 0) {
                     setExpenses(response.data.data);
                 }

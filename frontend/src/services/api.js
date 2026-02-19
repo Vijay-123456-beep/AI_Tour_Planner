@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const apiBaseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const apiBaseURL = process.env.REACT_APP_API_URL || 'https://ai-tour-planner-backend.onrender.com/api';
 
 const api = axios.create({
     baseURL: apiBaseURL,
