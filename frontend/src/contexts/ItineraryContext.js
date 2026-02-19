@@ -12,12 +12,17 @@ export const ItineraryProvider = ({ children }) => {
             try {
                 const response = await api.get('/itinerary/');
                 if (response.data.success) {
+                    // Backend returns snake_case, frontend uses camelCase or inconsistent keys?
+                    // The backend returns keys like 'start_date', 'destination'.
+                    // Let's ensure we map them if the UI components expect camelCase.
+                    // Based on previous code, it seems it expects both or just passes them through.
+                    // I will keep the mapping but make it safer.
                     const serverData = response.data.data.map(it => ({
                         ...it,
-                        startDate: it.start_date,
-                        endDate: it.end_date,
-                        creatorEmail: it.creator_email,
-                        userId: it.user_id
+                        startDate: it.start_date || it.startDate,
+                        endDate: it.end_date || it.endDate,
+                        creatorEmail: it.creator_email || it.creatorEmail,
+                        userId: it.user_id || it.userId
                     }));
 
                     setItineraries(serverData);

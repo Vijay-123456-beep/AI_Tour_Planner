@@ -4,7 +4,7 @@ const apiBaseURL = process.env.REACT_APP_API_URL || 'https://ai-tour-planner-bac
 
 const api = axios.create({
     baseURL: apiBaseURL,
-    timeout: 10000,
+    timeout: 30000,
     headers: {
         'Content-Type': 'application/json',
     },
