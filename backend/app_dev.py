@@ -26,8 +26,8 @@ def init_mongodb():
         # Test connection
         mongo_client.admin.command('ping')
         db = mongo_client.get_database()
-        print("✅ MongoDB Connected Successfully!")
-        print(f"📊 Database: {db.name}")
+        print("[SUCCESS] MongoDB Connected Successfully!")
+        print(f"[INFO] Database: {db.name}")
         
         # Create collections if they don't exist
         if 'itineraries' not in db.list_collection_names():
@@ -39,8 +39,8 @@ def init_mongodb():
         
         return True
     except Exception as e:
-        print(f"❌ MongoDB Connection Error: {str(e)}")
-        print("⚠️  Falling back to in-memory storage")
+        print(f"[ERROR] MongoDB Connection Error: {str(e)}")
+        print("[WARN] Falling back to in-memory storage")
         return False
 
 # Fallback in-memory storage
@@ -74,13 +74,13 @@ def create_app():
     })
     jwt = JWTManager(app)
     
-    print("⚠️  Running in DEVELOPMENT mode - Firebase disabled for testing")
-    print("📝 Note: Routes that require Firebase are disabled")
-    print("🔑 OpenRouter API configured for AI features")
-    if mongodb_connected:
-        print("💾 Using MongoDB for persistent storage")
+    print("[WARN] Running in DEVELOPMENT mode - Firebase disabled for testing")
+    print("[NOTE] Note: Routes that require Firebase are disabled")
+    print("[INFO] OpenRouter API configured for AI features")
+    if app.config['MONGODB_CONNECTED'] and db is not None:
+        print("[INFO] Using MongoDB for persistent storage")
     else:
-        print("💾 Using in-memory storage (fallback)")
+        print("[INFO] Using in-memory storage (fallback)")
     
     # API endpoint for OpenRouter AI integration
     @app.route('/api/ai/test', methods=['POST'])
@@ -145,6 +145,7 @@ def create_app():
                 "budget": data.get('budget', 0),
                 "travelers": data.get('travelers', 1),
                 "interests": data.get('interests', []),
+                "creator_email": data.get('creator_email', ''),
                 "status": "created",
                 "createdAt": datetime.now().isoformat()
             }
@@ -154,13 +155,13 @@ def create_app():
                 try:
                     db.itineraries.insert_one(itinerary)
                     itinerary.pop('_id', None)  # Remove MongoDB's _id field for JSON serialization
-                    print(f"✓ Itinerary saved to MongoDB: {itinerary_id}")
+                    print(f"[SUCCESS] Itinerary saved to MongoDB: {itinerary_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB save failed: {e}, using in-memory storage")
+                    print(f"[WARN] MongoDB save failed: {e}, using in-memory storage")
                     in_memory_db['itineraries'][itinerary_id] = itinerary
             else:
                 in_memory_db['itineraries'][itinerary_id] = itinerary
-                print(f"✓ Itinerary saved to in-memory storage: {itinerary_id}")
+                print(f"[SUCCESS] Itinerary saved to in-memory storage: {itinerary_id}")
             
             return jsonify({"success": True, "data": itinerary}), 201
         except Exception as e:
@@ -180,7 +181,7 @@ def create_app():
                     itinerary.pop('_id', None)  # Remove MongoDB's _id field
                     return jsonify({"success": True, "data": itinerary}), 200
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}")
+                print(f"[WARN] MongoDB query failed: {e}")
         
         # Fallback to in-memory
         itinerary = in_memory_db['itineraries'].get(itinerary_id)
@@ -204,18 +205,322 @@ def create_app():
                 for itinerary in itineraries:
                     itinerary.pop('_id', None)  # Remove MongoDB's _id field
                     data.append(itinerary)
-                print(f"✓ Retrieved {len(data)} itineraries from MongoDB")
+                print(f"[SUCCESS] Retrieved {len(data)} itineraries from MongoDB")
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}, using in-memory storage")
+                print(f"[WARN] MongoDB query failed: {e}, using in-memory storage")
                 data = list(in_memory_db['itineraries'].values())
         else:
             data = list(in_memory_db['itineraries'].values())
+        
         
         return jsonify({
             "success": True,
             "data": data
         }), 200
     
+    # --- AI GENERATION & PACKING LIST (Ported from ItineraryService) ---
+    
+    def _get_points_of_interest(destination, interests, max_results=20):
+        """Get points of interest for a destination (Mock Implementation)"""
+        # Mock data for different destinations (Simplified for dev)
+        mock_places = {
+            'paris': [
+                {'id': 'eiffel_tower', 'name': 'Eiffel Tower', 'category': 'attraction', 'location': 'Champ de Mars', 'price': 25.00, 'rating': 4.7},
+                {'id': 'louvre', 'name': 'Louvre Museum', 'category': 'museum', 'location': 'Rue de Rivoli', 'price': 17.00, 'rating': 4.7},
+            ],
+            'london': [
+                {'id': 'big_ben', 'name': 'Big Ben', 'category': 'attraction', 'location': 'London SW1A 0AA', 'price': 0.00, 'rating': 4.6},
+                {'id': 'london_eye', 'name': 'London Eye', 'category': 'attraction', 'location': 'Riverside Building', 'price': 30.00, 'rating': 4.5},
+            ]
+        }
+        
+        dest_key = destination.lower().strip()
+        places = mock_places.get(dest_key, [])
+        
+        # Generic fallback
+        if not places:
+            places = [
+                {'id': 'attraction1', 'name': f'Main Attraction in {destination}', 'category': 'attraction', 'location': 'Center', 'price': 15.00},
+                {'id': 'restaurant1', 'name': f'Local Food in {destination}', 'category': 'restaurant', 'location': 'Downtown', 'price': 30.00},
+            ]
+            
+        return places
+
+    @app.route('/api/itinerary/<itinerary_id>/generate', methods=['POST', 'OPTIONS'])
+    def generate_itinerary(itinerary_id):
+        """Generate itinerary details using AI/Mock logic"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            # 1. Fetch Itinerary
+            itinerary = None
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                itinerary = db.itineraries.find_one({"id": itinerary_id})
+                if itinerary: itinerary.pop('_id', None)
+            else:
+                itinerary = in_memory_db['itineraries'].get(itinerary_id)
+                
+            if not itinerary:
+                return jsonify({"error": "Itinerary not found"}), 404
+                
+            # 2. Extract params
+            destination = itinerary.get('destination', '')
+            try:
+                start_date = datetime.fromisoformat(itinerary.get('start_date', '').replace('Z', '+00:00'))
+                end_date = datetime.fromisoformat(itinerary.get('end_date', '').replace('Z', '+00:00'))
+            except:
+                return jsonify({"error": "Invalid date format in itinerary"}), 400
+                
+            days_count = (end_date - start_date).days + 1
+            interests = itinerary.get('interests', [])
+            
+            # 3. Generate Daily Plan
+            places = _get_points_of_interest(destination, interests)
+            daily_itinerary = {}
+            current_date = start_date
+            
+            import random
+            from datetime import timedelta
+            
+            for day in range(1, days_count + 1):
+                daily_activities = []
+                # Mock activity generation
+                if places:
+                    place = random.choice(places)
+                    daily_activities.append({
+                        'time': '10:00',
+                        'activity': f"Visit {place['name']}",
+                        'location': place['location'],
+                        'cost': place.get('price', 0),
+                        'category': place.get('category', 'attraction')
+                    })
+                
+                date_str = current_date.strftime('%Y-%m-%d')
+                daily_itinerary[date_str] = {
+                    'day': day,
+                    'date': date_str,
+                    'activities': daily_activities,
+                    'total_estimated_cost': sum(a.get('cost', 0) for a in daily_activities)
+                }
+                current_date += timedelta(days=1)
+
+            # 4. Update Itinerary
+            updates = {
+                'days': daily_itinerary,
+                'status': 'planned',
+                'updated_at': datetime.now().isoformat()
+            }
+            
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                db.itineraries.update_one({"id": itinerary_id}, {"$set": updates})
+                # Re-fetch
+                itinerary = db.itineraries.find_one({"id": itinerary_id})
+                itinerary.pop('_id', None)
+                
+                # Convert dates for JSON
+                if isinstance(itinerary.get('created_at'), datetime):
+                    itinerary['created_at'] = itinerary['created_at'].isoformat()
+            else:
+                in_memory_db['itineraries'][itinerary_id].update(updates)
+                itinerary = in_memory_db['itineraries'][itinerary_id]
+
+            return jsonify({"success": True, "data": itinerary, "message": "Itinerary generated"}), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    def _get_weather_forecast(destination, start_date, end_date):
+        """Get weather forecast for a destination and date range"""
+        # Mock weather data
+        weather_conditions = ['sunny', 'partly_cloudy', 'cloudy', 'rainy', 'thunderstorm', 'snowy']
+        
+        # Calculate number of days
+        days = (end_date - start_date).days + 1
+        
+        # Generate forecast for each day
+        forecast = []
+        total_temp = 0
+        rain_days = 0
+        
+        import random
+        from datetime import timedelta
+        
+        for i in range(days):
+            # Generate random weather for each day
+            condition = random.choice(weather_conditions)
+            temp = random.randint(-5, 35)  # Temperature in Celsius
+            total_temp += temp
+            
+            if condition in ['rainy', 'thunderstorm']:
+                rain_days += 1
+                
+            forecast.append({
+                'date': (start_date + timedelta(days=i)).strftime('%Y-%m-%d'),
+                'condition': condition,
+                'temp_min': temp - random.randint(2, 5),
+                'temp_max': temp + random.randint(2, 5),
+                'precipitation_chance': 80 if condition in ['rainy', 'thunderstorm'] else random.randint(0, 30)
+            })
+        
+        # Calculate average temperature
+        avg_temp = total_temp / days if days > 0 else 20
+        
+        return {
+            'destination': destination,
+            'start_date': start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else start_date,
+            'end_date': end_date.strftime('%Y-%m-%d') if hasattr(end_date, 'strftime') else end_date,
+            'avg_temp': round(avg_temp, 1),
+            'rain_days': rain_days,
+            'conditions': list(set([f['condition'] for f in forecast])),
+            'forecast': forecast
+        }
+
+    @app.route('/api/itinerary/<itinerary_id>/packing-list', methods=['POST', 'OPTIONS'])
+    def generate_packing_list(itinerary_id):
+        """Generate packing list"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            # 1. Fetch Itinerary
+            itinerary = None
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                itinerary = db.itineraries.find_one({"id": itinerary_id})
+                if itinerary: itinerary.pop('_id', None)
+            else:
+                itinerary = in_memory_db['itineraries'].get(itinerary_id)
+                
+            if not itinerary:
+                return jsonify({"error": "Itinerary not found"}), 404
+            
+            # 2. Extract params
+            destination = itinerary.get('destination', '')
+            try:
+                start_date = datetime.fromisoformat(itinerary.get('start_date', '').replace('Z', '+00:00'))
+                end_date = datetime.fromisoformat(itinerary.get('end_date', '').replace('Z', '+00:00'))
+            except:
+                # Fallback if dates are strings
+                 return jsonify({"error": "Invalid date format, please update itinerary"}), 400
+
+            # 3. Get Weather & Activities
+            weather_data = _get_weather_forecast(destination, start_date, end_date)
+            
+            activities = []
+            for day in itinerary.get('days', {}).values():
+                for activity in day.get('activities', []):
+                     activities.append(activity.get('category', '').lower())
+
+            # 4. Generate List
+            # Base packing list
+            packing_list = {
+                'destination': destination,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'weather_forecast': weather_data,
+                'categories': {}
+            }
+            
+            # (Simplified generation logic from ported service)
+            clothing = [{'item': 'T-shirts', 'quantity': 5, 'essential': True}]
+            if weather_data['avg_temp'] < 15:
+                clothing.append({'item': 'Jacket', 'quantity': 1, 'essential': True})
+            
+            packing_list['categories']['Clothing'] = clothing
+            
+            # 5. Update Itinerary
+            updates = {
+                'packing_list': packing_list,
+                'updated_at': datetime.now().isoformat()
+            }
+            
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                db.itineraries.update_one({"id": itinerary_id}, {"$set": updates})
+                # Re-fetch for response
+                itinerary = db.itineraries.find_one({"id": itinerary_id})
+                itinerary.pop('_id', None)
+                if isinstance(itinerary.get('created_at'), datetime):
+                   itinerary['created_at'] = itinerary['created_at'].isoformat()
+            else:
+                in_memory_db['itineraries'][itinerary_id].update(updates)
+                itinerary = in_memory_db['itineraries'][itinerary_id]
+
+            return jsonify({"success": True, "data": packing_list, "message": "Packing list generated"}), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    @app.route('/api/itinerary/<itinerary_id>/stats', methods=['GET', 'OPTIONS'])
+    def get_itinerary_stats(itinerary_id):
+        """Get itinerary statistics"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            # 1. Fetch Itinerary
+            itinerary = None
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                itinerary = db.itineraries.find_one({"id": itinerary_id})
+                if itinerary: itinerary.pop('_id', None)
+            else:
+                itinerary = in_memory_db['itineraries'].get(itinerary_id)
+                
+            if not itinerary:
+                return jsonify({"error": "Itinerary not found"}), 404
+            
+            # 2. Calculate Expenses
+            total_expenses = 0
+            expense_count = 0
+            
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                expenses = db.expenses.find({"itineraryId": itinerary_id})
+                for exp in expenses:
+                    total_expenses += float(exp.get('amount', 0))
+                    expense_count += 1
+            else:
+                for exp in in_memory_db['expenses'].values():
+                    if str(exp.get('itineraryId')) == str(itinerary_id):
+                        total_expenses += float(exp.get('amount', 0))
+                        expense_count += 1
+            
+            # 3. Calculate Bookings
+            total_transport = 0
+            booking_count = 0
+            
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                bookings = db.bookings.find({"itineraryId": itinerary_id})
+                for b in bookings:
+                    # bookings store 'cost' or 'price'
+                    cost = float(b.get('cost', 0)) or float(b.get('price', 0))
+                    total_transport += cost
+                    booking_count += 1
+            else:
+                for b in in_memory_db['bookings'].values():
+                    if str(b.get('itineraryId')) == str(itinerary_id):
+                        cost = float(b.get('cost', 0)) or float(b.get('price', 0))
+                        total_transport += cost
+                        booking_count += 1
+
+            stats = {
+                'itinerary_id': itinerary_id,
+                'destination': itinerary.get('destination'),
+                'budget': itinerary.get('budget', 0),
+                'expenses': {
+                    'total': total_expenses,
+                    'count': expense_count
+                },
+                'transport': {
+                    'total': total_transport,
+                    'count': booking_count
+                },
+                'total_cost': total_expenses + total_transport
+            }
+            
+            return jsonify({"success": True, "data": stats}), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route('/api/itinerary/<itinerary_id>/update', methods=['PUT', 'OPTIONS'])
     def update_itinerary(itinerary_id):
         """Mock update itinerary"""
@@ -232,9 +537,9 @@ def create_app():
                         {"id": itinerary_id},
                         {"$set": data}
                     )
-                    print(f"✓ Itinerary updated in MongoDB: {itinerary_id}")
+                    print(f"[SUCCESS] Itinerary updated in MongoDB: {itinerary_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB update failed: {e}")
+                    print(f"[WARN] MongoDB update failed: {e}")
             
             # Update in-memory
             if itinerary_id in in_memory_db['itineraries']:
@@ -255,9 +560,9 @@ def create_app():
             if app.config['MONGODB_CONNECTED'] and db is not None:
                 try:
                     db.itineraries.delete_one({"id": itinerary_id})
-                    print(f"✓ Itinerary deleted from MongoDB: {itinerary_id}")
+                    print(f"[SUCCESS] Itinerary deleted from MongoDB: {itinerary_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB delete failed: {e}")
+                    print(f"[WARN] MongoDB delete failed: {e}")
             
             # Delete from in-memory
             in_memory_db['itineraries'].pop(itinerary_id, None)
@@ -293,9 +598,9 @@ def create_app():
                 try:
                     db.expenses.insert_one(expense)
                     expense.pop('_id', None)
-                    print(f"✓ Expense saved to MongoDB: {expense_id}")
+                    print(f"[SUCCESS] Expense saved to MongoDB: {expense_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB save failed: {e}")
+                    print(f"[WARN] MongoDB save failed: {e}")
                     in_memory_db['expenses'][expense_id] = expense
             else:
                 in_memory_db['expenses'][expense_id] = expense
@@ -318,7 +623,7 @@ def create_app():
                     expense.pop('_id', None)
                     data.append(expense)
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}")
+                print(f"[WARN] MongoDB query failed: {e}")
                 data = list(in_memory_db['expenses'].values())
         else:
             data = list(in_memory_db['expenses'].values())
@@ -338,7 +643,7 @@ def create_app():
                     expense.pop('_id', None)
                     return jsonify({"success": True, "data": expense}), 200
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}")
+                print(f"[WARN] MongoDB query failed: {e}")
         
         expense = in_memory_db['expenses'].get(expense_id)
         if expense:
@@ -362,9 +667,9 @@ def create_app():
                         {"id": expense_id},
                         {"$set": data}
                     )
-                    print(f"✓ Expense updated in MongoDB: {expense_id}")
+                    print(f"[SUCCESS] Expense updated in MongoDB: {expense_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB update failed: {e}")
+                    print(f"[WARN] MongoDB update failed: {e}")
             
             # Update in-memory
             if expense_id in in_memory_db['expenses']:
@@ -373,6 +678,104 @@ def create_app():
             return jsonify({"success": True, "data": data, "message": "Expense updated"}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 400
+
+    @app.route('/api/expenses/split-calculation/<itinerary_id>', methods=['GET', 'OPTIONS'])
+    def calculate_expense_splits(itinerary_id):
+        """Calculate expense splits"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            travelers_count = int(request.args.get('travelers_count', 2))
+            
+            expenses = []
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                cursor = db.expenses.find({"itineraryId": itinerary_id})
+                for doc in cursor:
+                    doc.pop('_id', None)
+                    expenses.append(doc)
+            else:
+                for exp in in_memory_db['expenses'].values():
+                    if str(exp.get('itineraryId')) == str(itinerary_id):
+                        expenses.append(exp)
+                        
+            total_amount = sum(float(exp.get('amount', 0)) for exp in expenses)
+            per_person = total_amount / travelers_count if travelers_count > 0 else 0
+            
+            splits = {}
+            for exp in expenses:
+                paid_by = exp.get('paid_by', 'Unknown')
+                if paid_by not in splits:
+                    splits[paid_by] = {'paid': 0, 'owes': 0}
+                
+                splits[paid_by]['paid'] += float(exp.get('amount', 0))
+                
+                split_among = exp.get('split_among', [])
+                if split_among:
+                    amount_per_person = float(exp.get('amount', 0)) / len(split_among)
+                    for person in split_among:
+                        if person not in splits:
+                            splits[person] = {'paid': 0, 'owes': 0}
+                        splits[person]['owes'] += amount_per_person
+
+            settlements = []
+            for person, totals in splits.items():
+                balance = totals['paid'] - totals['owes']
+                if balance > 0.01:
+                    settlements.append({'person': person, 'amount': round(balance, 2), 'type': 'receives'})
+                elif balance < -0.01:
+                    settlements.append({'person': person, 'amount': round(abs(balance), 2), 'type': 'pays'})
+            
+            return jsonify({
+                "success": True,
+                "data": {
+                    'total_amount': round(total_amount, 2),
+                    'per_person': round(per_person, 2),
+                    'travelers_count': travelers_count,
+                    'splits': splits,
+                    'settlements': settlements,
+                    'expense_count': len(expenses)
+                }
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/expenses/category-summary/<itinerary_id>', methods=['GET', 'OPTIONS'])
+    def get_expense_category_summary(itinerary_id):
+        """Get expense summary by category"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            expenses = []
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                cursor = db.expenses.find({"itineraryId": itinerary_id})
+                for doc in cursor:
+                    doc.pop('_id', None)
+                    expenses.append(doc)
+            else:
+                for exp in in_memory_db['expenses'].values():
+                    if str(exp.get('itineraryId')) == str(itinerary_id):
+                        expenses.append(exp)
+            
+            category_summary = {}
+            for exp in expenses:
+                category = exp.get('category', 'misc')
+                if category not in category_summary:
+                    category_summary[category] = {'total': 0, 'count': 0, 'items': []}
+                
+                category_summary[category]['total'] += float(exp.get('amount', 0))
+                category_summary[category]['count'] += 1
+                category_summary[category]['items'].append({
+                    'id': exp.get('id'),
+                    'description': exp.get('description'),
+                    'amount': exp.get('amount'),
+                    'paid_by': exp.get('paid_by')
+                })
+                
+            return jsonify({"success": True, "data": category_summary}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @app.route('/api/expenses/<expense_id>/delete', methods=['DELETE', 'OPTIONS'])
     def delete_expense(expense_id):
@@ -383,14 +786,62 @@ def create_app():
         if app.config['MONGODB_CONNECTED'] and db is not None:
             try:
                 db.expenses.delete_one({"id": expense_id})
-                print(f"✓ Expense deleted from MongoDB: {expense_id}")
+                print(f"[SUCCESS] Expense deleted from MongoDB: {expense_id}")
             except Exception as e:
-                print(f"⚠️  MongoDB delete failed: {e}")
+                print(f"[WARN] MongoDB delete failed: {e}")
         
         in_memory_db['expenses'].pop(expense_id, None)
         return jsonify({"success": True, "message": f"Expense {expense_id} deleted"}), 200
     
     # Transport/Booking Endpoints
+    @app.route('/api/transport/options', methods=['GET', 'OPTIONS'])
+    def get_transport_options():
+        """Get available transport options"""
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        destination = request.args.get('destination', '')
+        travelers = int(request.args.get('travelers', 1))
+        
+        # Mock data (Ported from TransportService)
+        options = [
+            {
+                'id': 'jeep_001', 'type': 'jeep', 'name': 'Toyota Fortuner', 'capacity': 7, 
+                'price_per_day': 150, 'rating': 4.8, 'reviews': 245, 
+                'availability': 'Available', 'features': ['AC', 'GPS', 'Insurance', 'Fuel'],
+                'destination': destination
+            },
+            {
+                'id': 'jeep_002', 'type': 'jeep', 'name': 'Mahindra Bolero', 'capacity': 8, 
+                'price_per_day': 130, 'rating': 4.6, 'reviews': 189, 
+                'availability': 'Available', 'features': ['AC', 'Power Steering', 'Insurance'],
+                'destination': destination
+            },
+            {
+                'id': 'bike_001', 'type': 'bike', 'name': 'Royal Enfield Classic', 'capacity': 2, 
+                'price_per_day': 50, 'rating': 4.9, 'reviews': 512, 
+                'availability': 'Available', 'features': ['Helmet Included', 'Insurance', 'Navigation'],
+                'destination': destination
+            },
+            {
+                'id': 'cab_001', 'type': 'cab', 'name': 'Premium Sedan', 'capacity': 5, 
+                'price_per_day': 80, 'rating': 4.7, 'reviews': 678, 
+                'availability': 'Available', 'features': ['AC', 'GPS', 'Wifi', 'Insurance'],
+                'destination': destination
+            },
+            {
+                'id': 'cab_002', 'type': 'cab', 'name': 'Budget Hatchback', 'capacity': 4, 
+                'price_per_day': 60, 'rating': 4.5, 'reviews': 421, 
+                'availability': 'Available', 'features': ['AC', 'Insurance'],
+                'destination': destination
+            }
+        ]
+        
+        # Filter by capacity
+        filtered_options = [opt for opt in options if opt['capacity'] >= travelers]
+        
+        return jsonify({"success": True, "data": filtered_options}), 200
+
     @app.route('/api/transport/book', methods=['POST', 'OPTIONS'])
     def book_transport():
         """Book transport and store in MongoDB"""
@@ -420,9 +871,9 @@ def create_app():
                 try:
                     db.bookings.insert_one(booking)
                     booking.pop('_id', None)
-                    print(f"✓ Booking saved to MongoDB: {booking_id}")
+                    print(f"[SUCCESS] Booking saved to MongoDB: {booking_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB save failed: {e}")
+                    print(f"[WARN] MongoDB save failed: {e}")
                     in_memory_db['bookings'][booking_id] = booking
             else:
                 in_memory_db['bookings'][booking_id] = booking
@@ -445,7 +896,7 @@ def create_app():
                     booking.pop('_id', None)
                     data.append(booking)
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}")
+                print(f"[WARN] MongoDB query failed: {e}")
                 data = list(in_memory_db['bookings'].values())
         else:
             data = list(in_memory_db['bookings'].values())
@@ -465,7 +916,7 @@ def create_app():
                     booking.pop('_id', None)
                     return jsonify({"success": True, "data": booking}), 200
             except Exception as e:
-                print(f"⚠️  MongoDB query failed: {e}")
+                print(f"[WARN] MongoDB query failed: {e}")
         
         booking = in_memory_db['bookings'].get(booking_id)
         if booking:
@@ -489,9 +940,9 @@ def create_app():
                         {"id": booking_id},
                         {"$set": data}
                     )
-                    print(f"✓ Booking updated in MongoDB: {booking_id}")
+                    print(f"[SUCCESS] Booking updated in MongoDB: {booking_id}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB update failed: {e}")
+                    print(f"[WARN] MongoDB update failed: {e}")
             
             # Update in-memory
             if booking_id in in_memory_db['bookings']:
@@ -537,7 +988,7 @@ def create_app():
                     msg.pop('_id', None)
                     messages.append(msg)
             except Exception as e:
-                print(f"⚠️  MongoDB chat fetch failed: {e}")
+                print(f"[WARN] MongoDB chat fetch failed: {e}")
                 # Fallback to in-memory
                 messages = [m for m in in_memory_db.get('chat_messages', []) if str(m.get('itinerary_id')) == str(itinerary_id)]
         else:
@@ -570,7 +1021,7 @@ def create_app():
                 try:
                     db.chat_messages.insert_one(new_message.copy())
                 except Exception as e:
-                    print(f"⚠️  MongoDB chat save failed: {e}")
+                    print(f"[WARN] MongoDB chat save failed: {e}")
 
             # Save to in-memory
             in_memory_db['chat_messages'].append(new_message)
@@ -645,9 +1096,9 @@ def create_app():
             if app.config['MONGODB_CONNECTED'] and db is not None:
                 try:
                     db.users.insert_one(new_user.copy())
-                    print(f"✓ User registered in MongoDB: {email}")
+                    print(f"[SUCCESS] User registered in MongoDB: {email}")
                 except Exception as e:
-                    print(f"⚠️  MongoDB user save failed: {e}")
+                    print(f"[WARN] MongoDB user save failed: {e}")
             
             # Save to In-Memory
             in_memory_db['users'][email] = new_user
@@ -748,9 +1199,9 @@ def create_app():
         if app.config['MONGODB_CONNECTED'] and db is not None:
             try:
                 db.bookings.delete_one({"id": booking_id})
-                print(f"✓ Booking deleted from MongoDB: {booking_id}")
+                print(f"[SUCCESS] Booking deleted from MongoDB: {booking_id}")
             except Exception as e:
-                print(f"⚠️  MongoDB delete failed: {e}")
+                print(f"[WARN] MongoDB delete failed: {e}")
                 
         in_memory_db['bookings'].pop(booking_id, None)
         return jsonify({"success": True, "message": f"Booking {booking_id} deleted"}), 200
@@ -802,7 +1253,7 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    print("🚀 Starting AI Tour Planner Backend")
-    print("📍 Backend URL: http://localhost:5000")
-    print("📊 Health Check: http://localhost:5000/api/health")
+    print("[INFO] Starting AI Tour Planner Backend")
+    print(f"[INFO] Server running primarily on http://localhost:5000")
+    print("---------------------------------------------------")
     app.run(debug=True, host='0.0.0.0', port=5000)

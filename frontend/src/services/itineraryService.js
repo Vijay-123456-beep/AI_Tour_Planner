@@ -11,7 +11,10 @@ export const itineraryService = {
                 budget: parseFloat(itineraryData.budget),
                 interests: itineraryData.interests || [],
                 travelers: itineraryData.travelers || 1,
-                description: itineraryData.description || ''
+                interests: itineraryData.interests || [],
+                travelers: itineraryData.travelers || 1,
+                description: itineraryData.description || '',
+                creator_email: itineraryData.creator_email || itineraryData.creatorEmail
             });
             return response.data.data;
         } catch (error) {

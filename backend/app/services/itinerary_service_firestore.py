@@ -42,6 +42,7 @@ class ItineraryService:
                 'interests': itinerary_data.get('interests', []),
                 'travelers': itinerary_data.get('travelers', 1),
                 'description': itinerary_data.get('description', ''),
+                'creator_email': itinerary_data.get('creator_email'),
                 'status': 'active',
                 'created_at': datetime.utcnow(),
                 'updated_at': datetime.utcnow()
@@ -76,6 +77,13 @@ class ItineraryService:
             for doc in docs:
                 itinerary = doc.to_dict()
                 itinerary['id'] = doc.id
+                
+                # Convert datetime objects to strings for JSON serialization
+                for field in ['start_date', 'end_date', 'created_at', 'updated_at']:
+                    if field in itinerary and hasattr(itinerary[field], 'isoformat'):
+                        itinerary[field] = itinerary[field].isoformat()
+                    # Also handle if it's already a string but we want to be safe (no change needed)
+                
                 itineraries.append(itinerary)
             
             return itineraries
@@ -106,10 +114,17 @@ class ItineraryService:
             itinerary = doc.to_dict()
             
             # Verify ownership
+            # Verify ownership
             if itinerary.get('user_id') != user_id:
                 raise ValueError('Unauthorized: You do not have access to this itinerary')
             
             itinerary['id'] = doc.id
+            
+            # Convert datetime objects to strings for JSON serialization
+            for field in ['start_date', 'end_date', 'created_at', 'updated_at']:
+                if field in itinerary and hasattr(itinerary[field], 'isoformat'):
+                    itinerary[field] = itinerary[field].isoformat()
+            
             return itinerary
             
         except Exception as e:

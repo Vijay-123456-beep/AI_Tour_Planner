@@ -12,24 +12,13 @@ export const ItineraryProvider = ({ children }) => {
             try {
                 const response = await api.get('/itinerary/');
                 if (response.data.success) {
-                    // Check if server returned empty list but we have local data
-                    // This happens when dev server restarts and wipes memory
-                    const serverData = response.data.data;
-                    const localData = localStorage.getItem('itineraries');
-
-                    if (serverData.length === 0 && localData) {
-                        try {
-                            const parsedLocal = JSON.parse(localData);
-                            if (parsedLocal.length > 0) {
-                                console.warn('Server empty, restoring from localStorage');
-                                setItineraries(parsedLocal);
-                                // Optional: Re-sync to server could happen here
-                                return;
-                            }
-                        } catch (e) {
-                            console.error('Error parsing local data:', e);
-                        }
-                    }
+                    const serverData = response.data.data.map(it => ({
+                        ...it,
+                        startDate: it.start_date,
+                        endDate: it.end_date,
+                        creatorEmail: it.creator_email,
+                        userId: it.user_id
+                    }));
 
                     setItineraries(serverData);
                 }

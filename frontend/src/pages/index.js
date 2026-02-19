@@ -4,7 +4,7 @@ import {
     TextField, MenuItem, Paper, Chip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Dialog, DialogTitle, DialogContent, DialogActions, Alert,
-    Tabs, Tab, Divider, InputAdornment, IconButton, ListSubheader
+    Tabs, Tab, ListSubheader
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -1266,7 +1266,7 @@ const ExpenseTrackerPage = () => {
 
 const ProfilePage = () => {
     const navigate = useNavigate();
-    const { currentUser, login } = useAuth(); // We'll just update local state manually or re-login
+    const { currentUser } = useAuth(); // We'll just update local state manually or re-login
     const { showSnackbar } = useSnackbar();
     const [formData, setFormData] = useState({
         fullName: currentUser?.fullName || '',
@@ -1798,7 +1798,7 @@ const CollaborationChat = ({ itinerary }) => {
     const chatContainerRef = React.useRef(null);
 
     // Fetch messages
-    const fetchMessages = async () => {
+    const fetchMessages = React.useCallback(async () => {
         if (!itinerary?.id) return;
         try {
             const response = await api.get(`/itinerary/${itinerary.id}/chat`);
@@ -1808,14 +1808,14 @@ const CollaborationChat = ({ itinerary }) => {
         } catch (error) {
             console.error('Error fetching chat messages:', error);
         }
-    };
+    }, [itinerary?.id]);
 
     // Initial fetch and polling
     useEffect(() => {
         fetchMessages();
         const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
         return () => clearInterval(interval);
-    }, [itinerary?.id]);
+    }, [fetchMessages]);
 
     // Auto-scroll to bottom
     useEffect(() => {

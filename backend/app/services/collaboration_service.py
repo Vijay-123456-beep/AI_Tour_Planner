@@ -9,7 +9,7 @@ class CollaborationService:
     def invite_traveler(self, inviter_id, trip_id, email, role='traveler'):
         """Invite a traveler to collaborate on a trip"""
         # Check if inviter has permission
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -45,7 +45,7 @@ class CollaborationService:
     
     def get_trip_members(self, user_id, trip_id):
         """Get all members of a trip"""
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -84,7 +84,7 @@ class CollaborationService:
             raise ValueError('Invalid amount')
             
         # Get trip to verify access
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -130,7 +130,7 @@ class CollaborationService:
     def get_expenses(self, user_id, trip_id):
         """Get all expenses for a trip"""
         # Verify user has access to this trip
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -158,7 +158,7 @@ class CollaborationService:
     def calculate_settlements(self, user_id, trip_id):
         """Calculate who owes what to whom for a trip"""
         # Verify user has access to this trip
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -261,7 +261,7 @@ class CollaborationService:
     def add_chat_message(self, trip_id, user_id, message):
         """Add a chat message to a trip"""
         # Verify user has access to this trip
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:
@@ -305,7 +305,7 @@ class CollaborationService:
     def get_chat_messages(self, user_id, trip_id, limit=100):
         """Get chat messages for a trip"""
         # Verify user has access to this trip
-        trip_ref = self.db.collection('trips').document(trip_id)
+        trip_ref = self.db.collection('itineraries').document(trip_id)
         trip = trip_ref.get()
         
         if not trip.exists:

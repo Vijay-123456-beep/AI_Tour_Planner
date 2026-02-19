@@ -68,3 +68,13 @@ def get_profile(current_user):
         return jsonify(user_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 404
+
+@auth_bp.route('/profile', methods=['PUT'])
+@token_required
+def update_profile(current_user):
+    data = request.get_json()
+    try:
+        result = auth_service.update_user_profile(current_user, data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400

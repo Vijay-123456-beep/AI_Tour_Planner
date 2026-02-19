@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await api.post('/auth/register', userData);
             if (response.data.success) {
-                const { data } = response.data;
+                // const { data } = response.data;
                 // Auto-login after register? Or just return success
                 return true;
             }

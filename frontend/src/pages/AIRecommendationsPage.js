@@ -25,10 +25,13 @@ import {
     TableRow,
 } from '@mui/material';
 import { aiService } from '../services/aiService';
+import { itineraryService } from '../services/itineraryService';
+import { useItinerary } from '../contexts/ItineraryContext';
 import { SnackbarContext } from '../contexts/SnackbarContext';
 
 const AIRecommendationsPage = () => {
     const { showSnackbar } = useContext(SnackbarContext);
+    const { addItinerary } = useItinerary();
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('recommendations'); // recommendations, generate, optimize
 
@@ -120,6 +123,42 @@ const AIRecommendationsPage = () => {
             showSnackbar('Itinerary generated successfully!', 'success');
         } catch (error) {
             showSnackbar(`Error: ${error}`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveItinerary = async () => {
+        if (!generatedItinerary) return;
+
+        try {
+            setLoading(true);
+            const itineraryData = {
+                destination: generationInputs.destination,
+                start_date: generationInputs.startDate,
+                end_date: generationInputs.endDate,
+                budget: generationInputs.budget,
+                interests: generationInputs.interests,
+                travelers: generationInputs.travelers,
+                description: generatedItinerary.summary || `Trip to ${generationInputs.destination}`,
+                daily_plan: generatedItinerary.itinerary || [],
+                creator_email: localStorage.getItem('userEmail')
+            };
+
+            const savedItinerary = await itineraryService.createItinerary(itineraryData);
+
+            // Add to context immediately for UI update
+            addItinerary({
+                ...savedItinerary,
+                startDate: savedItinerary.start_date,
+                endDate: savedItinerary.end_date,
+                creatorEmail: savedItinerary.creator_email
+            });
+
+            showSnackbar('Itinerary saved to your dashboard!', 'success');
+        } catch (error) {
+            console.error('Error saving itinerary:', error);
+            showSnackbar('Failed to save itinerary', 'error');
         } finally {
             setLoading(false);
         }
@@ -401,9 +440,19 @@ const AIRecommendationsPage = () => {
                     <Grid item xs={12} md={8}>
                         {generatedItinerary && (
                             <Box>
-                                <Typography variant="h6" gutterBottom>
-                                    Generated Itinerary: {generatedItinerary.destination}
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography variant="h6">
+                                        Generated Itinerary: {generatedItinerary.destination}
+                                    </Typography>
+                                    <Button
+                                        variant="contained"
+                                        color="secondary"
+                                        onClick={handleSaveItinerary}
+                                        disabled={loading}
+                                    >
+                                        Save to My Itineraries
+                                    </Button>
+                                </Box>
                                 <Card sx={{ mb: 2 }}>
                                     <CardContent>
                                         <Grid container spacing={2}>

@@ -87,3 +87,31 @@ class AuthService:
             
         except Exception as e:
             raise Exception(f"Failed to get user profile: {str(e)}")
+
+    def update_user_profile(self, user_id, data):
+        """Update user profile"""
+        try:
+            user_ref = self.db.collection('users').document(user_id)
+            doc = user_ref.get()
+            
+            if not doc.exists:
+                raise Exception("User not found")
+            
+            # Update allowed fields
+            updates = {}
+            if 'fullName' in data:
+                updates['name'] = data['fullName']
+            if 'mobile' in data:
+                updates['mobile'] = data['mobile']
+            
+            if updates:
+                updates['updated_at'] = firestore.SERVER_TIMESTAMP
+                user_ref.update(updates)
+                
+            return {
+                'success': True,
+                'message': 'Profile updated successfully'
+            }
+            
+        except Exception as e:
+            raise Exception(f"Failed to update profile: {str(e)}")

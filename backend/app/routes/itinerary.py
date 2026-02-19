@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.itinerary_service_firestore import ItineraryService
+from ..services.collaboration_service_firestore import CollaborationService
 
 itinerary_bp = Blueprint('itinerary', __name__)
 itinerary_service = ItineraryService()
+collab_service = CollaborationService()
 
 @itinerary_bp.route('/create', methods=['POST'])
 @jwt_required()
@@ -95,6 +97,39 @@ def get_itinerary_stats(itinerary_id):
         return jsonify({
             'success': True,
             'data': stats
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@itinerary_bp.route('/<itinerary_id>/chat', methods=['POST'])
+@jwt_required()
+def add_chat_message(itinerary_id):
+    """Add a chat message to an itinerary"""
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    
+    if 'text' not in data:
+        return jsonify({'error': 'Message text is required'}), 400
+        
+    try:
+        message = collab_service.add_chat_message(itinerary_id, user_id, data['text'])
+        return jsonify({
+            'success': True,
+            'data': message
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@itinerary_bp.route('/<itinerary_id>/chat', methods=['GET'])
+@jwt_required()
+def get_chat_messages(itinerary_id):
+    """Get chat messages for an itinerary"""
+    user_id = get_jwt_identity()
+    try:
+        messages = collab_service.get_chat_messages(user_id, itinerary_id)
+        return jsonify({
+            'success': True,
+            'data': messages
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
