@@ -4,12 +4,16 @@ Development version of app.py with MongoDB integration
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime
 from bson.objectid import ObjectId
 import uuid
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Load environment variables
 load_dotenv()
@@ -18,6 +22,7 @@ load_dotenv()
 MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/ai_tour_planner')
 mongo_client = None
 db = None
+socketio = SocketIO(cors_allowed_origins="*")
 
 def init_mongodb():
     global mongo_client, db
@@ -73,6 +78,7 @@ def create_app():
         }
     })
     jwt = JWTManager(app)
+    socketio.init_app(app)
     
     print("[WARN] Running in DEVELOPMENT mode - Firebase disabled for testing")
     print("[NOTE] Note: Routes that require Firebase are disabled")
@@ -959,15 +965,39 @@ def create_app():
     class NotificationService:
         @staticmethod
         def send_email(to_email, subject, body):
-            print(f"📧 [EMAIL SIMULATION] To: {to_email}")
-            print(f"   Subject: {subject}")
-            print(f"   Body: {body}")
-            # Placeholder for SMTP/SendGrid implementation
-            return True
+            smtp_server = os.getenv('SMTP_SERVER')
+            smtp_port = os.getenv('SMTP_PORT', 587)
+            smtp_user = os.getenv('SMTP_USER')
+            smtp_password = os.getenv('SMTP_PASSWORD')
+            sender_email = os.getenv('SMTP_SENDER', smtp_user)
+
+            if smtp_server and smtp_user:
+                try:
+                    msg = MIMEMultipart()
+                    msg['From'] = sender_email
+                    msg['To'] = to_email
+                    msg['Subject'] = subject
+                    msg.attach(MIMEText(body, 'plain'))
+                    
+                    server = smtplib.SMTP(smtp_server, int(smtp_port))
+                    server.starttls()
+                    server.login(smtp_user, smtp_password)
+                    server.send_message(msg)
+                    server.quit()
+                    print(f"[EMAIL SENT] To: {to_email}")
+                    return True
+                except Exception as e:
+                    print(f"[EMAIL ERROR] Failed to send: {e}")
+                    return False
+            else:
+                print(f"[EMAIL SIMULATION] To: {to_email}")
+                print(f"   Subject: {subject}")
+                print(f"   Body: {body}")
+                return True
 
         @staticmethod
         def send_sms(to_phone, body):
-            print(f"📱 [SMS SIMULATION] To: {to_phone}")
+            print(f"[SMS SIMULATION] To: {to_phone}")
             print(f"   Message: {body}")
             # Placeholder for Twilio implementation
             return True
@@ -997,6 +1027,18 @@ def create_app():
             
         return jsonify({"success": True, "data": messages}), 200
 
+    @socketio.on('join')
+    def on_join(data):
+        room = data['room']
+        join_room(room)
+        print(f"[SOCKET] User joined room: {room}")
+
+    @socketio.on('leave')
+    def on_leave(data):
+        room = data['room']
+        leave_room(room)
+        print(f"[SOCKET] User left room: {room}")
+
     @app.route('/api/itinerary/<itinerary_id>/chat', methods=['POST', 'OPTIONS'])
     def post_chat_message(itinerary_id):
         """Post a new chat message"""
@@ -1005,27 +1047,31 @@ def create_app():
         
         try:
             data = request.get_json()
-            if not data or 'text' not in data or 'user' not in data:
-                return jsonify({"error": "Missing text or user"}), 400
-
+            user = data.get('user', 'Anonymous')
+            text = data.get('text', '')
+            timestamp = datetime.now().isoformat()
+            
             new_message = {
                 "id": str(uuid.uuid4()),
                 "itinerary_id": itinerary_id,
-                "user": data['user'],
-                "text": data['text'],
-                "timestamp": datetime.now().isoformat()
+                "user": user,
+                "text": text,
+                "timestamp": timestamp
             }
-
-            # Save to MongoDB
+            
+            # Save to DB
             if app.config['MONGODB_CONNECTED'] and db is not None:
                 try:
                     db.chat_messages.insert_one(new_message.copy())
                 except Exception as e:
                     print(f"[WARN] MongoDB chat save failed: {e}")
-
-            # Save to in-memory
-            in_memory_db['chat_messages'].append(new_message)
+            else:
+                # Fallback to in-memory
+                in_memory_db['chat_messages'].append(new_message)
             
+            # Emit to Socket Room
+            socketio.emit('new_message', new_message, room=itinerary_id)
+
             # --- START NOTIFICATION LOGIC ---
             # 1. Find the itinerary creator (Simulated logic)
             # In a real app, we'd fetch the itinerary and check its 'creator_id' or 'owner_email'
@@ -1256,4 +1302,4 @@ if __name__ == '__main__':
     print("[INFO] Starting AI Tour Planner Backend")
     print(f"[INFO] Server running primarily on http://localhost:5000")
     print("---------------------------------------------------")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)

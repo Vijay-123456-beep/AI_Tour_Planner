@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { io } from 'socket.io-client';
 import {
     Box, Typography, Button, Card, CardContent, Grid, Container,
     TextField, MenuItem, Paper, Chip,
@@ -23,6 +24,10 @@ import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
 import { fetchWeatherForecast, getWeatherRecommendations } from '../services/weatherService';
 import { itineraryService } from '../services/itineraryService';
 import api from '../services/api';
+import ExpenseAnalytics from '../components/ExpenseAnalytics';
+import ItineraryMap from '../components/ItineraryMap';
+import { downloadItineraryPDF } from '../utils/pdfGenerator';
+import DownloadIcon from '@mui/icons-material/Download';
 
 const ItineraryListPage = () => {
     const navigate = useNavigate();
@@ -209,9 +214,20 @@ const ItineraryDetailPage = () => {
                 {/* Itinerary Header */}
                 <Card sx={{ mb: 3, backgroundColor: 'primary.main', color: 'white' }}>
                     <CardContent>
-                        <Typography variant="h3" gutterBottom>
-                            {itinerary.destination}
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <Typography variant="h3" gutterBottom>
+                                {itinerary.destination}
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color="secondary"
+                                startIcon={<DownloadIcon />}
+                                onClick={() => downloadItineraryPDF(itinerary, expenses)}
+                                sx={{ mt: 1 }}
+                            >
+                                Download PDF
+                            </Button>
+                        </Box>
                         <Grid container spacing={3} sx={{ mt: 1 }}>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="body2" opacity={0.9}>Dates</Typography>
@@ -237,6 +253,13 @@ const ItineraryDetailPage = () => {
                                 <Chip key={interest} label={interest} />
                             ))}
                         </Box>
+                    </CardContent>
+                </Card>
+
+                {/* Map Section */}
+                <Card sx={{ mb: 3 }}>
+                    <CardContent>
+                        <ItineraryMap destination={itinerary.destination} />
                     </CardContent>
                 </Card>
 
@@ -1091,58 +1114,8 @@ const ExpenseTrackerPage = () => {
 
                     {/* Expenses Table */}
                     <Grid item xs={12}>
-                        {expenses.length > 0 && (
-                            <Grid container spacing={3} sx={{ mb: 4 }}>
-                                <Grid item xs={12} md={6}>
-                                    <Card sx={{ height: '100%' }}>
-                                        <CardContent>
-                                            <Typography variant="h6" gutterBottom textAlign="center">Values by Category</Typography>
-                                            <Box sx={{ height: 300, width: '100%' }}>
-                                                <ResponsiveContainer>
-                                                    <PieChart>
-                                                        <Pie
-                                                            data={Object.entries(
-                                                                expenses.reduce((acc, curr) => {
-                                                                    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
-                                                                    return acc;
-                                                                }, {})
-                                                            ).map(([name, value]) => ({ name, value }))}
-                                                            cx="50%"
-                                                            cy="50%"
-                                                            innerRadius={60}
-                                                            outerRadius={100}
-                                                            paddingAngle={5}
-                                                            dataKey="value"
-                                                        >
-                                                            {Object.entries(
-                                                                expenses.reduce((acc, curr) => {
-                                                                    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
-                                                                    return acc;
-                                                                }, {})
-                                                            ).map((entry, index) => (
-                                                                <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
-                                                            ))}
-                                                        </Pie>
-                                                        <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
-                                                        <Legend verticalAlign="bottom" height={36} />
-                                                    </PieChart>
-                                                </ResponsiveContainer>
-                                            </Box>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                                <Grid item xs={12} md={6}>
-                                    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', p: 2 }}>
-                                        <Typography variant="h6" gutterBottom textAlign="center">Summary</Typography>
-                                        <Typography variant="h3" color="primary" textAlign="center" sx={{ my: 2 }}>
-                                            ${expenses.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
-                                        </Typography>
-                                        <Typography variant="subtitle1" color="text.secondary" textAlign="center">
-                                            Total Spent
-                                        </Typography>
-                                    </Card>
-                                </Grid>
-                            </Grid>
+                        {expenses.length > 0 && selectedItineraryData && (
+                            <ExpenseAnalytics expenses={expenses} budget={selectedItineraryData.budget || 0} />
                         )}
 
                         <Box sx={{ p: 4 }}>
@@ -1796,6 +1769,7 @@ const CollaborationChat = ({ itinerary }) => {
     const [newMessage, setNewMessage] = useState('');
     const [user, setUser] = useState(localStorage.getItem('userEmail') || 'Traveler'); // Simple user identity
     const chatContainerRef = React.useRef(null);
+    const socketRef = React.useRef(null);
 
     // Fetch messages
     const fetchMessages = React.useCallback(async () => {
@@ -1803,6 +1777,8 @@ const CollaborationChat = ({ itinerary }) => {
         try {
             const response = await api.get(`/itinerary/${itinerary.id}/chat`);
             if (response.data.success) {
+                // Merge with existing to avoid jitter, or just replace
+                // Here we replace, but socket keeps it fresh
                 setMessages(response.data.data);
             }
         } catch (error) {
@@ -1810,12 +1786,35 @@ const CollaborationChat = ({ itinerary }) => {
         }
     }, [itinerary?.id]);
 
-    // Initial fetch and polling
+    // Initial fetch and Socket setup
     useEffect(() => {
         fetchMessages();
-        const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
-        return () => clearInterval(interval);
-    }, [fetchMessages]);
+
+        // Connect Socket
+        socketRef.current = io('http://localhost:5000');
+        const socket = socketRef.current;
+
+        socket.on('connect', () => {
+            console.log("Socket connected");
+            if (itinerary?.id) {
+                socket.emit('join', { room: itinerary.id });
+            }
+        });
+
+        socket.on('new_message', (msg) => {
+            setMessages(prev => {
+                if (prev.find(m => m.id === msg.id)) return prev;
+                return [...prev, msg];
+            });
+        });
+
+        return () => {
+            if (itinerary?.id) {
+                socket.emit('leave', { room: itinerary.id });
+            }
+            socket.disconnect();
+        };
+    }, [fetchMessages, itinerary?.id]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -1827,26 +1826,33 @@ const CollaborationChat = ({ itinerary }) => {
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !itinerary?.id) return;
 
+        const tempId = 'temp-' + Date.now();
+        const payload = {
+            user: user,
+            text: newMessage
+        };
+
+        // Optimistic update
+        const tempMessage = {
+            ...payload,
+            timestamp: new Date().toISOString(),
+            id: tempId
+        };
+        setMessages([...messages, tempMessage]);
+        setNewMessage('');
+
         try {
-            const payload = {
-                user: user,
-                text: newMessage
-            };
-
-            // Optimistic update
-            const tempMessage = {
-                ...payload,
-                timestamp: new Date().toISOString(),
-                id: 'temp-' + Date.now()
-            };
-            setMessages([...messages, tempMessage]);
-            setNewMessage('');
-
-            await api.post(`/itinerary/${itinerary.id}/chat`, payload);
-            fetchMessages(); // Refresh to get server timestamp/ID
+            const response = await api.post(`/itinerary/${itinerary.id}/chat`, payload);
+            if (response.data.success) {
+                const realMsg = response.data.data;
+                // Replace temp with real
+                setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+            }
         } catch (error) {
             console.error('Error sending message:', error);
             showSnackbar('Failed to send message', 'error');
+            // Remove temp message on error
+            setMessages(prev => prev.filter(m => m.id !== tempId));
         }
     };
 
