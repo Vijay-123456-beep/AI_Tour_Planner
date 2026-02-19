@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from datetime import datetime
 from bson.objectid import ObjectId
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -65,9 +66,9 @@ def create_app():
     # Initialize extensions with proper CORS configuration
     CORS(app, resources={
         r"/api/*": {
-            "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+            "origins": ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://192.168.1.24:3000", "*"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Title", "HTTP-Referer"],
             "supports_credentials": True
         }
     })
@@ -223,7 +224,45 @@ def create_app():
         
         try:
             data = request.get_json()
+            
+            # Update in MongoDB if connected
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.itineraries.update_one(
+                        {"id": itinerary_id},
+                        {"$set": data}
+                    )
+                    print(f"✓ Itinerary updated in MongoDB: {itinerary_id}")
+                except Exception as e:
+                    print(f"⚠️  MongoDB update failed: {e}")
+            
+            # Update in-memory
+            if itinerary_id in in_memory_db['itineraries']:
+                in_memory_db['itineraries'][itinerary_id].update(data)
+                
             return jsonify({"success": True, "data": data, "message": "Itinerary updated"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @app.route('/api/itinerary/<itinerary_id>/delete', methods=['DELETE', 'OPTIONS'])
+    def delete_itinerary(itinerary_id):
+        """Delete itinerary"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            # Delete from MongoDB if connected
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.itineraries.delete_one({"id": itinerary_id})
+                    print(f"✓ Itinerary deleted from MongoDB: {itinerary_id}")
+                except Exception as e:
+                    print(f"⚠️  MongoDB delete failed: {e}")
+            
+            # Delete from in-memory
+            in_memory_db['itineraries'].pop(itinerary_id, None)
+            
+            return jsonify({"success": True, "message": "Itinerary deleted"}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 400
     
@@ -307,6 +346,34 @@ def create_app():
         
         return jsonify({"error": "Expense not found"}), 404
     
+    @app.route('/api/expenses/<expense_id>/update', methods=['PUT', 'OPTIONS'])
+    def update_expense(expense_id):
+        """Update expense"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            
+            # Update in MongoDB if connected
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.expenses.update_one(
+                        {"id": expense_id},
+                        {"$set": data}
+                    )
+                    print(f"✓ Expense updated in MongoDB: {expense_id}")
+                except Exception as e:
+                    print(f"⚠️  MongoDB update failed: {e}")
+            
+            # Update in-memory
+            if expense_id in in_memory_db['expenses']:
+                in_memory_db['expenses'][expense_id].update(data)
+                
+            return jsonify({"success": True, "data": data, "message": "Expense updated"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
     @app.route('/api/expenses/<expense_id>/delete', methods=['DELETE', 'OPTIONS'])
     def delete_expense(expense_id):
         """Delete expense from MongoDB"""
@@ -406,6 +473,272 @@ def create_app():
         
         return jsonify({"error": "Booking not found"}), 404
     
+    @app.route('/api/transport/bookings/<booking_id>/update', methods=['PUT', 'OPTIONS'])
+    def update_booking(booking_id):
+        """Update booking"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            
+            # Update in MongoDB if connected
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.bookings.update_one(
+                        {"id": booking_id},
+                        {"$set": data}
+                    )
+                    print(f"✓ Booking updated in MongoDB: {booking_id}")
+                except Exception as e:
+                    print(f"⚠️  MongoDB update failed: {e}")
+            
+            # Update in-memory
+            if booking_id in in_memory_db['bookings']:
+                in_memory_db['bookings'][booking_id].update(data)
+                
+            return jsonify({"success": True, "data": data, "message": "Booking updated"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    # Initialize chat storage
+    if 'chat_messages' not in in_memory_db:
+        in_memory_db['chat_messages'] = []
+
+    class NotificationService:
+        @staticmethod
+        def send_email(to_email, subject, body):
+            print(f"📧 [EMAIL SIMULATION] To: {to_email}")
+            print(f"   Subject: {subject}")
+            print(f"   Body: {body}")
+            # Placeholder for SMTP/SendGrid implementation
+            return True
+
+        @staticmethod
+        def send_sms(to_phone, body):
+            print(f"📱 [SMS SIMULATION] To: {to_phone}")
+            print(f"   Message: {body}")
+            # Placeholder for Twilio implementation
+            return True
+
+    @app.route('/api/itinerary/<itinerary_id>/chat', methods=['GET', 'OPTIONS'])
+    def get_chat_messages(itinerary_id):
+        """Get chat messages for an itinerary"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        messages = []
+        
+        # Fetch from MongoDB if connected
+        if app.config['MONGODB_CONNECTED'] and db is not None:
+            try:
+                cursor = db.chat_messages.find({"itinerary_id": itinerary_id}).sort("timestamp", 1)
+                for msg in cursor:
+                    msg.pop('_id', None)
+                    messages.append(msg)
+            except Exception as e:
+                print(f"⚠️  MongoDB chat fetch failed: {e}")
+                # Fallback to in-memory
+                messages = [m for m in in_memory_db.get('chat_messages', []) if str(m.get('itinerary_id')) == str(itinerary_id)]
+        else:
+            # In-memory storage
+            messages = [m for m in in_memory_db.get('chat_messages', []) if str(m.get('itinerary_id')) == str(itinerary_id)]
+            
+        return jsonify({"success": True, "data": messages}), 200
+
+    @app.route('/api/itinerary/<itinerary_id>/chat', methods=['POST', 'OPTIONS'])
+    def post_chat_message(itinerary_id):
+        """Post a new chat message"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            if not data or 'text' not in data or 'user' not in data:
+                return jsonify({"error": "Missing text or user"}), 400
+
+            new_message = {
+                "id": str(uuid.uuid4()),
+                "itinerary_id": itinerary_id,
+                "user": data['user'],
+                "text": data['text'],
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # Save to MongoDB
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.chat_messages.insert_one(new_message.copy())
+                except Exception as e:
+                    print(f"⚠️  MongoDB chat save failed: {e}")
+
+            # Save to in-memory
+            in_memory_db['chat_messages'].append(new_message)
+            
+            # --- START NOTIFICATION LOGIC ---
+            # 1. Find the itinerary creator (Simulated logic)
+            # In a real app, we'd fetch the itinerary and check its 'creator_id' or 'owner_email'
+            creator_email = "creator@example.com" 
+            creator_phone = "+1234567890"
+            
+            # 2. Check if the sender is NOT the creator
+            if data['user'] != "Creator": 
+                # Notify via Email
+                NotificationService.send_email(
+                    creator_email,
+                    f"New Message on Itinerary {itinerary_id}",
+                    f"{data['user']} says: {data['text']}"
+                )
+                
+                # Notify via SMS
+                NotificationService.send_sms(
+                    creator_phone,
+                    f"AI Tour Planner: New message from {data['user']}: {data['text'][:50]}..."
+                )
+            # --- END NOTIFICATION LOGIC ---
+
+            return jsonify({"success": True, "data": new_message}), 201
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # --- AUTHENTICATION ENDPOINTS ---
+    
+    # Initialize users storage
+    if 'users' not in in_memory_db:
+        in_memory_db['users'] = {} # Key: email, Value: user_obj
+
+    @app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
+    def register_user():
+        """Register a new user"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            required_fields = ['email', 'password', 'fullName']
+            if not all(field in data for field in required_fields):
+                return jsonify({"error": "Missing required fields"}), 400
+            
+            email = data['email'].lower().strip()
+            
+            # Check if user exists (In-Memory)
+            if email in in_memory_db['users']:
+                return jsonify({"error": "User already exists"}), 400
+                
+            # Check if user exists (MongoDB)
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                existing_user = db.users.find_one({"email": email})
+                if existing_user:
+                    return jsonify({"error": "User already exists"}), 400
+            
+            new_user = {
+                "id": str(uuid.uuid4()),
+                "email": email,
+                "password": data['password'], # In production, HASH this!
+                "fullName": data['fullName'],
+                "mobile": data.get('mobile', ''),
+                "createdAt": datetime.now().isoformat()
+            }
+            
+            # Save to MongoDB
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                try:
+                    db.users.insert_one(new_user.copy())
+                    print(f"✓ User registered in MongoDB: {email}")
+                except Exception as e:
+                    print(f"⚠️  MongoDB user save failed: {e}")
+            
+            # Save to In-Memory
+            in_memory_db['users'][email] = new_user
+            
+            # Return user info (no password)
+            user_response = {k: v for k, v in new_user.items() if k != 'password'}
+            return jsonify({"success": True, "data": user_response, "message": "Registration successful"}), 201
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+    def login_user():
+        """Login user"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            if not data or 'email' not in data or 'password' not in data:
+                return jsonify({"error": "Missing email or password"}), 400
+            
+            email = data['email'].lower().strip()
+            password = data['password']
+            
+            user = None
+            
+            # Check MongoDB first
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                user = db.users.find_one({"email": email})
+                if user:
+                    user['id'] = str(user.pop('_id')) # Convert ObjectId to string
+            
+            # Fallback to In-Memory if not found or DB not connected
+            if not user:
+                user = in_memory_db['users'].get(email)
+            
+            if not user or user['password'] != password:
+                return jsonify({"error": "Invalid email or password"}), 401
+            
+            # Return user info (no password)
+            user_response = {k: v for k, v in user.items() if k != 'password'}
+            token = f"mock-jwt-token-{user['id']}" # Mock token
+            
+            return jsonify({
+                "success": True, 
+                "data": { "user": user_response, "token": token }, 
+                "message": "Login successful"
+            }), 200
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/auth/profile', methods=['PUT', 'OPTIONS'])
+    def update_profile():
+        """Update user profile"""
+        if request.method == 'OPTIONS':
+            return '', 204
+        
+        try:
+            data = request.get_json()
+            email = data.get('email')
+            
+            if not email:
+                return jsonify({"error": "Email is required to identify user"}), 400
+
+            # Update in MongoDB if connected
+            if app.config['MONGODB_CONNECTED'] and db is not None:
+                db.users.update_one(
+                    {"email": email},
+                    {"$set": {
+                        "fullName": data.get('fullName'),
+                        "mobile": data.get('mobile')
+                    }}
+                )
+            
+            # Update in-memory
+            if email in in_memory_db['users']:
+                user = in_memory_db['users'][email]
+                if 'fullName' in data: user['fullName'] = data['fullName']
+                if 'mobile' in data: user['mobile'] = data['mobile']
+                
+                # Return updated user
+                user_response = {k: v for k, v in user.items() if k != 'password'}
+                return jsonify({"success": True, "data": user_response, "message": "Profile updated"}), 200
+            
+            return jsonify({"error": "User not found"}), 404
+            
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route('/api/transport/bookings/<booking_id>/delete', methods=['DELETE', 'OPTIONS'])
     def delete_booking(booking_id):
         """Delete booking from MongoDB"""
@@ -418,7 +751,7 @@ def create_app():
                 print(f"✓ Booking deleted from MongoDB: {booking_id}")
             except Exception as e:
                 print(f"⚠️  MongoDB delete failed: {e}")
-        
+                
         in_memory_db['bookings'].pop(booking_id, None)
         return jsonify({"success": True, "message": f"Booking {booking_id} deleted"}), 200
     

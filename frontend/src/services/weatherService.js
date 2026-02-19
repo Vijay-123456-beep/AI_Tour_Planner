@@ -1,27 +1,66 @@
-import api from './api';
+import axios from 'axios';
+import apiClient from './api';
+
+const API_KEY = 'fc720f77b2adc6ea259934f20928688b';
+const BASE_URL = 'https://api.openweathermap.org/data/2.5/forecast';
 
 export const fetchWeatherForecast = async (destination, startDate, endDate, interests = []) => {
     try {
-        // Call backend API first
-        try {
-            const interestsParam = interests.join(',');
-            const response = await api.get('/weather/forecast', {
-                params: {
-                    destination,
-                    start_date: startDate,
-                    end_date: endDate,
-                    interests: interestsParam
-                }
-            });
-            return response.data.data;
-        } catch (apiError) {
-            console.warn('Backend API error, falling back to mock data:', apiError);
-            // Fallback to mock data if API fails
-            return generateMockWeatherData(destination, startDate, endDate);
-        }
+        // Fetch 5-day forecast from OpenWeatherMap
+        const response = await axios.get(BASE_URL, {
+            params: {
+                q: destination,
+                appid: API_KEY,
+                units: 'metric'
+            }
+        });
+
+        const list = response.data.list;
+        const city = response.data.city;
+
+        // Process 3-hour intervals into daily forecast
+        // We take the forecast for 12:00 PM each day as representative
+        const dailyForecasts = {};
+
+        list.forEach(item => {
+            const date = item.dt_txt.split(' ')[0];
+            const time = item.dt_txt.split(' ')[1];
+
+            // Prefer 12:00:00, or take the first one if not set
+            if (!dailyForecasts[date] || time === '12:00:00') {
+                dailyForecasts[date] = {
+                    date: date,
+                    temp: Math.round(item.main.temp),
+                    condition: item.weather[0].main,
+                    description: item.weather[0].description,
+                    humidity: item.main.humidity,
+                    windSpeed: Math.round(item.wind.speed * 3.6), // m/s to km/h
+                    precipitation: Math.round((item.pop || 0) * 100),
+                    icon: item.weather[0].icon
+                };
+            }
+        });
+
+        const forecast = Object.values(dailyForecasts).slice(0, 5); // Limit to 5 days
+        const avgTemp = forecast.reduce((sum, day) => sum + day.temp, 0) / (forecast.length || 1);
+
+        return {
+            destination: city.name,
+            startDate, // Note: Forecast is only next 5 days, might not match trip dates exactly
+            endDate,
+            forecast,
+            summary: {
+                avgTemp: Math.round(avgTemp),
+                condition: forecast[0]?.condition || 'Unknown',
+                precipitation: `${Math.max(...forecast.map(d => d.precipitation))}%`,
+                windSpeed: `${Math.round(forecast.reduce((sum, d) => sum + d.windSpeed, 0) / forecast.length)} km/h`
+            },
+            packingRecommendations: getWeatherRecommendations(forecast)
+        };
+
     } catch (error) {
-        console.error('Weather fetch error:', error);
-        throw error;
+        console.warn('Real weather fetch failed, falling back to mock:', error);
+        return generateMockWeatherData(destination, startDate, endDate);
     }
 };
 
@@ -85,7 +124,7 @@ export const getWeatherRecommendations = (forecast) => {
 
 export const getHealthTips = async (destination, startDate, endDate) => {
     try {
-        const response = await api.post('/weather/health-tips', {
+        const response = await apiClient.post('/weather/health-tips', {
             destination,
             start_date: startDate,
             end_date: endDate

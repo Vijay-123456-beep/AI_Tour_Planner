@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Button, Card, CardContent, Grid, Container,
     TextField, MenuItem, Paper, Chip,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Dialog, DialogTitle, DialogContent, DialogActions, Alert
+    Dialog, DialogTitle, DialogContent, DialogActions, Alert,
+    Tabs, Tab, Divider, InputAdornment, IconButton, ListSubheader
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { useSnackbar } from '../contexts/SnackbarContext';
 import { useItinerary } from '../contexts/ItineraryContext';
 import { useTransport } from '../contexts/TransportContext';
 import { useExpense } from '../contexts/ExpenseContext';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import AddIcon from '@mui/icons-material/Add';
 import EmptyStateIcon from '@mui/icons-material/LuggageOutlined';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -19,19 +22,93 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
 import { fetchWeatherForecast, getWeatherRecommendations } from '../services/weatherService';
 import { itineraryService } from '../services/itineraryService';
+import api from '../services/api';
 
 const ItineraryListPage = () => {
     const navigate = useNavigate();
     const { itineraries, deleteItinerary } = useItinerary();
+    const [tabValue, setTabValue] = useState(0); // 0: My Itineraries, 1: Available Tours
+
+    // Get current user email
+    const userEmail = localStorage.getItem('userEmail');
+
+    // Filter itineraries to show only active/future trips (endDate >= today)
+    const today = new Date().toISOString().split('T')[0];
+    const activeItineraries = itineraries.filter(it => it.endDate >= today);
+
+    // Split into My Itineraries and Available Tours
+    const myItineraries = activeItineraries.filter(it =>
+        it.creatorEmail === userEmail || (!it.creatorEmail && !userEmail)
+    );
+
+    const availableTours = activeItineraries.filter(it =>
+        it.creatorEmail && it.creatorEmail !== userEmail
+    );
 
     const handleDelete = (id) => {
-        deleteItinerary(id);
+        if (window.confirm('Are you sure you want to delete this itinerary?')) {
+            deleteItinerary(id);
+        }
     };
+
+    const handleTabChange = (event, newValue) => {
+        setTabValue(newValue);
+    };
+
+    const ItineraryCard = ({ itinerary, isOwner }) => (
+        <Grid item xs={12} md={6} lg={4} key={itinerary.id}>
+            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flex: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <Typography variant="h6" gutterBottom>
+                            {itinerary.destination}
+                        </Typography>
+                        {!isOwner && (
+                            <Chip label={`By ${itinerary.creatorEmail || 'Traveler'}`} size="small" variant="outlined" />
+                        )}
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        <strong>Dates:</strong> {itinerary.startDate} to {itinerary.endDate}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        <strong>Budget:</strong> ${itinerary.budget}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" paragraph>
+                        <strong>Travelers:</strong> {itinerary.travelers}
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                        {itinerary.interests.map(interest => (
+                            <Chip key={interest} label={interest} size="small" />
+                        ))}
+                    </Box>
+                </CardContent>
+                <Box sx={{ p: 2, display: 'flex', gap: 1, justifyContent: 'flex-end', bgcolor: '#f5f5f5' }}>
+                    <Button
+                        size="small"
+                        startIcon={<EditIcon />}
+                        onClick={() => navigate(`/itineraries/${itinerary.id}`)}
+                    >
+                        View
+                    </Button>
+                    {isOwner && (
+                        <Button
+                            size="small"
+                            startIcon={<DeleteIcon />}
+                            color="error"
+                            onClick={() => handleDelete(itinerary.id)}
+                        >
+                            Delete
+                        </Button>
+                    )}
+                </Box>
+            </Card>
+        </Grid>
+    );
 
     return (
         <Container maxWidth="lg">
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-                <Typography variant="h4">My Itineraries</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, mt: 4 }}>
+                <Typography variant="h4">Itineraries</Typography>
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -41,71 +118,51 @@ const ItineraryListPage = () => {
                 </Button>
             </Box>
 
-            {itineraries.length === 0 ? (
-                <Box sx={{ textAlign: 'center', py: 8 }}>
-                    <EmptyStateIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
-                        No itineraries yet
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary" paragraph>
-                        Start planning your next adventure by creating a new itinerary.
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        size="large"
-                        startIcon={<AddIcon />}
-                        onClick={() => navigate('/itineraries/create')}
-                        sx={{ mt: 2 }}
-                    >
-                        Create Your First Itinerary
-                    </Button>
-                </Box>
-            ) : (
-                <Grid container spacing={3}>
-                    {itineraries.map(itinerary => (
-                        <Grid item xs={12} md={6} lg={4} key={itinerary.id}>
-                            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                <CardContent sx={{ flex: 1 }}>
-                                    <Typography variant="h6" gutterBottom>
-                                        {itinerary.destination}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" paragraph>
-                                        <strong>Dates:</strong> {itinerary.startDate} to {itinerary.endDate}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" paragraph>
-                                        <strong>Budget:</strong> ${itinerary.budget}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" paragraph>
-                                        <strong>Travelers:</strong> {itinerary.travelers}
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                                        {itinerary.interests.map(interest => (
-                                            <Chip key={interest} label={interest} size="small" />
-                                        ))}
-                                    </Box>
-                                </CardContent>
-                                <Box sx={{ p: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                                    <Button
-                                        size="small"
-                                        startIcon={<EditIcon />}
-                                        onClick={() => navigate(`/itineraries/${itinerary.id}`)}
-                                    >
-                                        View
-                                    </Button>
-                                    <Button
-                                        size="small"
-                                        startIcon={<DeleteIcon />}
-                                        color="error"
-                                        onClick={() => handleDelete(itinerary.id)}
-                                    >
-                                        Delete
-                                    </Button>
-                                </Box>
-                            </Card>
+            <Paper sx={{ mb: 3 }}>
+                <Tabs value={tabValue} onChange={handleTabChange} indicatorColor="primary" textColor="primary" centered>
+                    <Tab label={`My Itineraries (${myItineraries.length})`} />
+                    <Tab label={`Available Tours (${availableTours.length})`} />
+                </Tabs>
+            </Paper>
+
+            <Box role="tabpanel" hidden={tabValue !== 0}>
+                {tabValue === 0 && (
+                    myItineraries.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 8 }}>
+                            <EmptyStateIcon sx={{ fontSize: 80, color: 'text.secondary', mb: 2 }} />
+                            <Typography variant="h6" color="text.secondary" gutterBottom>
+                                No active itineraries found
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary" paragraph>
+                                Start planning your next adventure!
+                            </Typography>
+                            <Button variant="contained" onClick={() => navigate('/itineraries/create')}>
+                                Create Your First Itinerary
+                            </Button>
+                        </Box>
+                    ) : (
+                        <Grid container spacing={3}>
+                            {myItineraries.map(it => <ItineraryCard key={it.id} itinerary={it} isOwner={true} />)}
                         </Grid>
-                    ))}
-                </Grid>
-            )}
+                    )
+                )}
+            </Box>
+
+            <Box role="tabpanel" hidden={tabValue !== 1}>
+                {tabValue === 1 && (
+                    availableTours.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 8 }}>
+                            <Typography variant="h6" color="text.secondary">
+                                No public tours available yet.
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <Grid container spacing={3}>
+                            {availableTours.map(it => <ItineraryCard key={it.id} itinerary={it} isOwner={false} />)}
+                        </Grid>
+                    )
+                )}
+            </Box>
         </Container>
     );
 };
@@ -282,22 +339,11 @@ const ItineraryDetailPage = () => {
                 {/* Collaboration Dialog */}
                 <Dialog open={collaborationOpen} onClose={() => setCollaborationOpen(false)} maxWidth="sm" fullWidth>
                     <DialogTitle>Trip Collaboration - {itinerary.destination}</DialogTitle>
-                    <DialogContent>
-                        <Box sx={{ py: 2, minHeight: '300px', backgroundColor: '#f5f5f5', borderRadius: 1, p: 2, mb: 2 }}>
-                            <Typography variant="body2" color="text.secondary" align="center">
-                                💬 Chat with your travel companions about {itinerary.destination}
-                            </Typography>
-                        </Box>
-                        <TextField
-                            fullWidth
-                            placeholder="Type your message..."
-                            variant="outlined"
-                            size="small"
-                        />
+                    <DialogContent sx={{ p: 0, height: '500px' }}>
+                        <CollaborationChat itinerary={itinerary} />
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setCollaborationOpen(false)}>Close</Button>
-                        <Button variant="contained">Send Message</Button>
                     </DialogActions>
                 </Dialog>
             </Box>
@@ -357,6 +403,8 @@ const ItineraryCreatePage = () => {
         }
 
         // Call backend API
+        const creatorEmail = localStorage.getItem('userEmail') || 'anonymous@example.com';
+
         itineraryService.createItinerary({
             destination: formData.destination,
             startDate: formData.startDate,
@@ -364,7 +412,8 @@ const ItineraryCreatePage = () => {
             budget: formData.budget,
             interests: formData.interests,
             travelers: parseInt(formData.travelers),
-            description: formData.notes
+            description: formData.notes,
+            creatorEmail: creatorEmail // Add ownership
         })
             .then(createdItinerary => {
                 // Add to local context
@@ -376,7 +425,8 @@ const ItineraryCreatePage = () => {
                     budget: createdItinerary.budget,
                     interests: createdItinerary.interests,
                     travelers: createdItinerary.travelers,
-                    notes: createdItinerary.description
+                    notes: createdItinerary.description,
+                    creatorEmail: createdItinerary.creatorEmail || creatorEmail
                 });
 
                 showSnackbar('Itinerary created successfully!', 'success');
@@ -545,184 +595,7 @@ const ItineraryCreatePage = () => {
     );
 };
 
-const ProfilePage = () => {
-    const { itineraries } = useItinerary();
-    const { bookings } = useTransport();
-    const { expenses } = useExpense();
-    const [profileData] = useState({
-        name: 'Traveler',
-        email: localStorage.getItem('userEmail') || 'user@example.com',
-        phone: '+1-800-TRAVEL',
-        bio: 'Travel enthusiast exploring the world',
-        joinDate: 'January 2024',
-        country: 'USA',
-        preferences: ['Adventure', 'Food', 'Culture']
-    });
 
-    const totalExpenses = expenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
-    const totalBookings = bookings.length;
-    const totalTrips = itineraries.length;
-
-    return (
-        <Container maxWidth="md">
-            <Box sx={{ py: 4 }}>
-                <Grid container spacing={3}>
-                    {/* Profile Header Card */}
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 3 }}>
-                                    <Box
-                                        sx={{
-                                            width: 100,
-                                            height: 100,
-                                            borderRadius: '50%',
-                                            backgroundColor: 'primary.main',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'white',
-                                            fontSize: 40
-                                        }}
-                                    >
-                                        🧳
-                                    </Box>
-                                    <Box sx={{ flex: 1 }}>
-                                        <Typography variant="h4">{profileData.name}</Typography>
-                                        <Typography color="text.secondary">{profileData.email}</Typography>
-                                        <Typography variant="body2" color="text.secondary">Joined {profileData.joinDate}</Typography>
-                                    </Box>
-                                    <Button variant="outlined">Edit Profile</Button>
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* Stats Cards */}
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography color="primary" variant="h4" gutterBottom>
-                                    {totalTrips}
-                                </Typography>
-                                <Typography variant="body2">Total Trips</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography color="success.main" variant="h4" gutterBottom>
-                                    {totalBookings}
-                                </Typography>
-                                <Typography variant="body2">Transport Bookings</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography color="warning.main" variant="h4" gutterBottom>
-                                    ${totalExpenses.toFixed(0)}
-                                </Typography>
-                                <Typography variant="body2">Total Expenses</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center' }}>
-                                <Typography color="info.main" variant="h4" gutterBottom>
-                                    {itineraries.length * 5}
-                                </Typography>
-                                <Typography variant="body2">Travel Points</Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* Profile Information */}
-                    <Grid item xs={12} md={6}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" gutterBottom>Personal Information</Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">Phone</Typography>
-                                        <Typography>{profileData.phone}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">Country</Typography>
-                                        <Typography>{profileData.country}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">Bio</Typography>
-                                        <Typography>{profileData.bio}</Typography>
-                                    </Box>
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* Travel Preferences */}
-                    <Grid item xs={12} md={6}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" gutterBottom>Travel Preferences</Typography>
-                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-                                    {profileData.preferences.map(pref => (
-                                        <Chip key={pref} label={pref} color="primary" />
-                                    ))}
-                                </Box>
-                                <Typography variant="body2" color="text.secondary">Notifications</Typography>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                                    <Typography variant="body2">Email notifications</Typography>
-                                    <Typography variant="body2">Enabled</Typography>
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* Upcoming Trips */}
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" gutterBottom>Recent Trips</Typography>
-                                {itineraries.slice(0, 3).length > 0 ? (
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                        {itineraries.slice(0, 3).map(trip => (
-                                            <Paper key={trip.id} sx={{ p: 2, backgroundColor: '#fafafa' }}>
-                                                <Typography variant="subtitle1">{trip.destination}</Typography>
-                                                <Typography variant="body2" color="text.secondary">
-                                                    {trip.startDate} to {trip.endDate}
-                                                </Typography>
-                                            </Paper>
-                                        ))}
-                                    </Box>
-                                ) : (
-                                    <Typography color="text.secondary">No trips yet. Start planning!</Typography>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </Grid>
-
-                    {/* Account Settings */}
-                    <Grid item xs={12}>
-                        <Card>
-                            <CardContent>
-                                <Typography variant="h6" gutterBottom>Account Settings</Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    <Button variant="outlined" fullWidth>Change Password</Button>
-                                    <Button variant="outlined" fullWidth>Privacy Settings</Button>
-                                    <Button variant="outlined" color="error" fullWidth>Logout</Button>
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
-            </Box>
-        </Container>
-    );
-};
 
 const NotFoundPage = () => (
     <Box sx={{ textAlign: 'center', py: 12 }}>
@@ -734,11 +607,14 @@ const NotFoundPage = () => (
 const TransportBookingPage = () => {
     const navigate = useNavigate();
     const { showSnackbar } = useSnackbar();
-    const { addBooking, getBookingsByItinerary, deleteBooking } = useTransport();
+    const { addBooking, getBookingsByItinerary, deleteBooking, updateBooking } = useTransport();
     const { itineraries } = useItinerary();
+    const { currentUser } = useAuth();
     const [selectedItinerary, setSelectedItinerary] = useState('');
     const [bookings, setBookings] = useState([]);
     const [openDialog, setOpenDialog] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
         type: 'jeep',
         pickupLocation: '',
@@ -765,17 +641,50 @@ const TransportBookingPage = () => {
             return;
         }
 
-        const newBooking = {
+        const bookingData = {
             itineraryId: selectedItinerary,
             ...formData,
             passengers: parseInt(formData.passengers),
             price: parseFloat(formData.price) || transportOptions.find(t => t.type === formData.type).basePrice
         };
 
-        addBooking(newBooking);
-        setBookings([...bookings, newBooking]);
-        showSnackbar('Transport booked successfully!', 'success');
+        if (isEditing) {
+            updateBooking(editId, bookingData);
+            setBookings(bookings.map(b => b.id === editId ? { ...b, ...bookingData } : b));
+            showSnackbar('Transport booking updated!', 'success');
+        } else {
+            const newBooking = addBooking(bookingData);
+            setBookings([...bookings, newBooking]);
+            showSnackbar('Transport booked successfully!', 'success');
+        }
+
+        resetForm();
+    };
+
+    const handleEditBooking = (booking) => {
+        setFormData({
+            type: booking.type || 'jeep',
+            pickupLocation: booking.pickupLocation || '',
+            dropoffLocation: booking.dropoffLocation || '',
+            date: booking.date || '',
+            passengers: booking.passengers ? booking.passengers.toString() : '1',
+            price: booking.price ? booking.price.toString() : ''
+        });
+        setEditId(booking.id);
+        setIsEditing(true);
+        setOpenDialog(true);
+    };
+
+    const handleDeleteBooking = (id) => {
+        deleteBooking(id);
+        setBookings(bookings.filter(b => b.id !== id));
+        showSnackbar('Booking cancelled', 'success');
+    };
+
+    const resetForm = () => {
         setOpenDialog(false);
+        setIsEditing(false);
+        setEditId(null);
         setFormData({
             type: 'jeep',
             pickupLocation: '',
@@ -786,13 +695,13 @@ const TransportBookingPage = () => {
         });
     };
 
-    const handleDeleteBooking = (id) => {
-        deleteBooking(id);
-        setBookings(bookings.filter(b => b.id !== id));
-        showSnackbar('Booking cancelled', 'success');
-    };
-
     const selectedItineraryData = itineraries.find(i => String(i.id) === String(selectedItinerary));
+
+    // Filter active itineraries for dropdown
+    const today = new Date().toISOString().split('T')[0];
+    const activeItineraries = itineraries.filter(it => it.endDate >= today);
+    const myItineraries = activeItineraries.filter(it => it.creatorEmail === currentUser?.email);
+    const availableItineraries = activeItineraries.filter(it => it.creatorEmail !== currentUser?.email);
 
     return (
         <Container maxWidth="lg">
@@ -824,7 +733,14 @@ const TransportBookingPage = () => {
                                     size="small"
                                 >
                                     <MenuItem value="">-- Choose Itinerary --</MenuItem>
-                                    {itineraries.map(it => (
+                                    {myItineraries.length > 0 && <ListSubheader>My Itineraries</ListSubheader>}
+                                    {myItineraries.map(it => (
+                                        <MenuItem key={it.id} value={it.id}>
+                                            {it.destination} ({it.startDate})
+                                        </MenuItem>
+                                    ))}
+                                    {availableItineraries.length > 0 && <ListSubheader>Available Tours</ListSubheader>}
+                                    {availableItineraries.map(it => (
                                         <MenuItem key={it.id} value={it.id}>
                                             {it.destination} ({it.startDate})
                                         </MenuItem>
@@ -843,7 +759,7 @@ const TransportBookingPage = () => {
                                     <Button
                                         variant="contained"
                                         startIcon={<AddIcon />}
-                                        onClick={() => setOpenDialog(true)}
+                                        onClick={() => { resetForm(); setOpenDialog(true); }}
                                         disabled={!selectedItinerary}
                                     >
                                         Add Booking
@@ -883,8 +799,8 @@ const TransportBookingPage = () => {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {bookings.map(booking => (
-                                            <TableRow key={booking.id}>
+                                        {bookings.map((booking, index) => (
+                                            <TableRow key={booking.id || index}>
                                                 <TableCell sx={{ textTransform: 'capitalize' }}>{booking.type}</TableCell>
                                                 <TableCell>{booking.pickupLocation}</TableCell>
                                                 <TableCell>{booking.dropoffLocation}</TableCell>
@@ -892,6 +808,14 @@ const TransportBookingPage = () => {
                                                 <TableCell>{booking.passengers}</TableCell>
                                                 <TableCell>${booking.price}</TableCell>
                                                 <TableCell>
+                                                    <Button
+                                                        size="small"
+                                                        startIcon={<EditIcon />}
+                                                        onClick={() => handleEditBooking(booking)}
+                                                        sx={{ mr: 1 }}
+                                                    >
+                                                        Edit
+                                                    </Button>
                                                     <Button
                                                         size="small"
                                                         color="error"
@@ -912,8 +836,8 @@ const TransportBookingPage = () => {
             </Box>
 
             {/* Add Booking Dialog */}
-            <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Transport Booking</DialogTitle>
+            <Dialog open={openDialog} onClose={resetForm} maxWidth="sm" fullWidth>
+                <DialogTitle>{isEditing ? 'Edit Transport Booking' : 'Add Transport Booking'}</DialogTitle>
                 <DialogContent sx={{ pt: 2 }}>
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
@@ -980,8 +904,10 @@ const TransportBookingPage = () => {
                     </Grid>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-                    <Button onClick={handleAddBooking} variant="contained">Book</Button>
+                    <Button onClick={resetForm}>Cancel</Button>
+                    <Button onClick={handleAddBooking} variant="contained">
+                        {isEditing ? 'Update' : 'Book'}
+                    </Button>
                 </DialogActions>
             </Dialog>
         </Container>
@@ -991,11 +917,14 @@ const TransportBookingPage = () => {
 const ExpenseTrackerPage = () => {
     const navigate = useNavigate();
     const { showSnackbar } = useSnackbar();
-    const { addExpense, getExpensesByItinerary, deleteExpense, calculateSplits } = useExpense();
+    const { addExpense, getExpensesByItinerary, deleteExpense, calculateSplits, updateExpense } = useExpense();
     const { itineraries } = useItinerary();
+    const { currentUser } = useAuth();
     const [selectedItinerary, setSelectedItinerary] = useState('');
     const [expenses, setExpenses] = useState([]);
     const [openDialog, setOpenDialog] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
         description: '',
         amount: '',
@@ -1004,6 +933,12 @@ const ExpenseTrackerPage = () => {
     });
 
     const categories = ['accommodation', 'food', 'transport', 'activities', 'misc'];
+
+    // Filter active itineraries for dropdown
+    const today = new Date().toISOString().split('T')[0];
+    const activeItineraries = itineraries.filter(it => it.endDate >= today);
+    const myItineraries = activeItineraries.filter(it => it.creatorEmail === currentUser?.email);
+    const availableItineraries = activeItineraries.filter(it => it.creatorEmail !== currentUser?.email);
 
     const handleItinerarySelect = (itineraryId) => {
         setSelectedItinerary(itineraryId);
@@ -1016,7 +951,7 @@ const ExpenseTrackerPage = () => {
             return;
         }
 
-        const newExpense = {
+        const expenseData = {
             itineraryId: selectedItinerary,
             ...formData,
             amount: parseFloat(formData.amount),
@@ -1025,22 +960,47 @@ const ExpenseTrackerPage = () => {
                 : ['Traveler 1']
         };
 
-        addExpense(newExpense);
-        setExpenses([...expenses, newExpense]);
-        showSnackbar('Expense added successfully!', 'success');
-        setOpenDialog(false);
+        if (isEditing) {
+            updateExpense(editId, expenseData);
+            setExpenses(expenses.map(e => e.id === editId ? { ...e, ...expenseData } : e));
+            showSnackbar('Expense updated successfully!', 'success');
+        } else {
+            const newExpense = addExpense(expenseData);
+            setExpenses([...expenses, newExpense]);
+            showSnackbar('Expense added successfully!', 'success');
+        }
+
+        resetForm();
+    };
+
+    const handleEditExpense = (expense) => {
         setFormData({
-            description: '',
-            amount: '',
-            paidBy: '',
-            category: 'accommodation'
+            description: expense.description || '',
+            amount: expense.amount ? expense.amount.toString() : '',
+            paidBy: expense.paidBy || '',
+            category: expense.category || 'accommodation'
         });
+        setEditId(expense.id);
+        setIsEditing(true);
+        setOpenDialog(true);
     };
 
     const handleDeleteExpense = (id) => {
         deleteExpense(id);
         setExpenses(expenses.filter(e => e.id !== id));
         showSnackbar('Expense deleted', 'success');
+    };
+
+    const resetForm = () => {
+        setOpenDialog(false);
+        setIsEditing(false);
+        setEditId(null);
+        setFormData({
+            description: '',
+            amount: '',
+            paidBy: '',
+            category: 'accommodation'
+        });
     };
 
     const selectedItineraryData = itineraries.find(i => String(i.id) === String(selectedItinerary));
@@ -1076,7 +1036,14 @@ const ExpenseTrackerPage = () => {
                                     size="small"
                                 >
                                     <MenuItem value="">-- Choose Itinerary --</MenuItem>
-                                    {itineraries.map(it => (
+                                    {myItineraries.length > 0 && <ListSubheader>My Itineraries</ListSubheader>}
+                                    {myItineraries.map(it => (
+                                        <MenuItem key={it.id} value={it.id}>
+                                            {it.destination} ({it.travelers} travelers)
+                                        </MenuItem>
+                                    ))}
+                                    {availableItineraries.length > 0 && <ListSubheader>Available Tours</ListSubheader>}
+                                    {availableItineraries.map(it => (
                                         <MenuItem key={it.id} value={it.id}>
                                             {it.destination} ({it.travelers} travelers)
                                         </MenuItem>
@@ -1115,7 +1082,7 @@ const ExpenseTrackerPage = () => {
                         <Button
                             variant="contained"
                             startIcon={<AddIcon />}
-                            onClick={() => setOpenDialog(true)}
+                            onClick={() => { resetForm(); setOpenDialog(true); }}
                             disabled={!selectedItinerary}
                         >
                             Add Expense
@@ -1124,104 +1091,257 @@ const ExpenseTrackerPage = () => {
 
                     {/* Expenses Table */}
                     <Grid item xs={12}>
-                        {expenses.length === 0 ? (
-                            <Card>
-                                <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                    <Typography color="textSecondary">No expenses yet</Typography>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <TableContainer component={Paper}>
-                                <Table>
-                                    <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                                        <TableRow>
-                                            <TableCell><strong>Description</strong></TableCell>
-                                            <TableCell><strong>Category</strong></TableCell>
-                                            <TableCell><strong>Amount</strong></TableCell>
-                                            <TableCell><strong>Paid By</strong></TableCell>
-                                            <TableCell><strong>Action</strong></TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {expenses.map(expense => (
-                                            <TableRow key={expense.id}>
-                                                <TableCell>{expense.description}</TableCell>
-                                                <TableCell sx={{ textTransform: 'capitalize' }}>{expense.category}</TableCell>
-                                                <TableCell>${expense.amount.toFixed(2)}</TableCell>
-                                                <TableCell>{expense.paidBy}</TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        size="small"
-                                                        color="error"
-                                                        startIcon={<DeleteIcon />}
-                                                        onClick={() => handleDeleteExpense(expense.id)}
-                                                    >
-                                                        Delete
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                        {expenses.length > 0 && (
+                            <Grid container spacing={3} sx={{ mb: 4 }}>
+                                <Grid item xs={12} md={6}>
+                                    <Card sx={{ height: '100%' }}>
+                                        <CardContent>
+                                            <Typography variant="h6" gutterBottom textAlign="center">Values by Category</Typography>
+                                            <Box sx={{ height: 300, width: '100%' }}>
+                                                <ResponsiveContainer>
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={Object.entries(
+                                                                expenses.reduce((acc, curr) => {
+                                                                    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+                                                                    return acc;
+                                                                }, {})
+                                                            ).map(([name, value]) => ({ name, value }))}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={60}
+                                                            outerRadius={100}
+                                                            paddingAngle={5}
+                                                            dataKey="value"
+                                                        >
+                                                            {Object.entries(
+                                                                expenses.reduce((acc, curr) => {
+                                                                    acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+                                                                    return acc;
+                                                                }, {})
+                                                            ).map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'][index % 5]} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                                                        <Legend verticalAlign="bottom" height={36} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                                <Grid item xs={12} md={6}>
+                                    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', p: 2 }}>
+                                        <Typography variant="h6" gutterBottom textAlign="center">Summary</Typography>
+                                        <Typography variant="h3" color="primary" textAlign="center" sx={{ my: 2 }}>
+                                            ${expenses.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
+                                        </Typography>
+                                        <Typography variant="subtitle1" color="text.secondary" textAlign="center">
+                                            Total Spent
+                                        </Typography>
+                                    </Card>
+                                </Grid>
+                            </Grid>
                         )}
+
+                        <Box sx={{ p: 4 }}>
+                            <Grid container spacing={4}>
+                                {/* Expense List */}
+                                <Grid item xs={12}>
+                                    {expenses.length === 0 ? (
+                                        <Card>
+                                            <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                                                <Typography color="textSecondary">No expenses yet</Typography>
+                                            </CardContent>
+                                        </Card>
+                                    ) : (
+                                        <TableContainer component={Paper}>
+                                            <Table>
+                                                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+                                                    <TableRow>
+                                                        <TableCell><strong>Description</strong></TableCell>
+                                                        <TableCell><strong>Category</strong></TableCell>
+                                                        <TableCell><strong>Amount</strong></TableCell>
+                                                        <TableCell><strong>Paid By</strong></TableCell>
+                                                        <TableCell><strong>Action</strong></TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {expenses.map((expense, index) => (
+                                                        <TableRow key={expense.id || index}>
+                                                            <TableCell>{expense.description}</TableCell>
+                                                            <TableCell sx={{ textTransform: 'capitalize' }}>{expense.category}</TableCell>
+                                                            <TableCell>${expense.amount.toFixed(2)}</TableCell>
+                                                            <TableCell>{expense.paidBy}</TableCell>
+                                                            <TableCell>
+                                                                <Button
+                                                                    size="small"
+                                                                    startIcon={<EditIcon />}
+                                                                    onClick={() => handleEditExpense(expense)}
+                                                                    sx={{ mr: 1 }}
+                                                                >
+                                                                    Edit
+                                                                </Button>
+                                                                <Button
+                                                                    size="small"
+                                                                    color="error"
+                                                                    startIcon={<DeleteIcon />}
+                                                                    onClick={() => handleDeleteExpense(expense.id)}
+                                                                >
+                                                                    Delete
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </TableContainer>
+                                    )}
+                                </Grid>
+                            </Grid>
+                        </Box>
+
+                        {/* Add Expense Dialog */}
+                        <Dialog open={openDialog} onClose={resetForm} maxWidth="sm" fullWidth>
+                            <DialogTitle>{isEditing ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
+                            <DialogContent sx={{ pt: 2 }}>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            fullWidth
+                                            label="Description"
+                                            placeholder="e.g., Hotel booking, Dinner"
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            fullWidth
+                                            select
+                                            label="Category"
+                                            value={formData.category}
+                                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                        >
+                                            {categories.map(cat => (
+                                                <MenuItem key={cat} value={cat} sx={{ textTransform: 'capitalize' }}>{cat}</MenuItem>
+                                            ))}
+                                        </TextField>
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            type="number"
+                                            label="Amount ($)"
+                                            value={formData.amount}
+                                            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                            inputProps={{ step: '0.01', min: 0 }}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Paid By"
+                                            placeholder="e.g., John"
+                                            value={formData.paidBy}
+                                            onChange={(e) => setFormData({ ...formData, paidBy: e.target.value })}
+                                        />
+                                    </Grid>
+                                </Grid>
+                            </DialogContent>
+                            <DialogActions>
+                                <Button onClick={resetForm}>Cancel</Button>
+                                <Button onClick={handleAddExpense} variant="contained">
+                                    {isEditing ? 'Update' : 'Add'}
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
                     </Grid>
                 </Grid>
             </Box>
+        </Container >
+    );
+};
 
-            {/* Add Expense Dialog */}
-            <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Expense</DialogTitle>
-                <DialogContent sx={{ pt: 2 }}>
-                    <Grid container spacing={2}>
-                        <Grid item xs={12}>
+const ProfilePage = () => {
+    const navigate = useNavigate();
+    const { currentUser, login } = useAuth(); // We'll just update local state manually or re-login
+    const { showSnackbar } = useSnackbar();
+    const [formData, setFormData] = useState({
+        fullName: currentUser?.fullName || '',
+        email: currentUser?.email || '',
+        mobile: currentUser?.mobile || ''
+    });
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await api.put('/auth/profile', {
+                email: formData.email, // Identify user by email
+                fullName: formData.fullName,
+                mobile: formData.mobile
+            });
+
+            if (response.data.success) {
+                // Update local storage
+                const updatedUser = { ...currentUser, ...formData };
+                localStorage.setItem('userData', JSON.stringify(updatedUser)); // Hacky update
+                // ideally call a dedicated updateContext method
+                showSnackbar('Profile updated successfully', 'success');
+            }
+        } catch (error) {
+            console.error('Profile update error:', error);
+            showSnackbar('Failed to update profile', 'error');
+        }
+    };
+
+    return (
+        <Container maxWidth="sm">
+            <Box sx={{ py: 4 }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dashboard')} sx={{ mb: 3 }}>
+                    Back
+                </Button>
+                <Card>
+                    <CardContent>
+                        <Typography variant="h5" gutterBottom>My Profile 👤</Typography>
+                        <form onSubmit={handleSubmit}>
                             <TextField
                                 fullWidth
-                                label="Description"
-                                placeholder="e.g., Hotel booking, Dinner"
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                label="Full Name"
+                                name="fullName"
+                                value={formData.fullName}
+                                onChange={handleChange}
+                                margin="normal"
                             />
-                        </Grid>
-                        <Grid item xs={12}>
                             <TextField
                                 fullWidth
-                                select
-                                label="Category"
-                                value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                            >
-                                {categories.map(cat => (
-                                    <MenuItem key={cat} value={cat} sx={{ textTransform: 'capitalize' }}>{cat}</MenuItem>
-                                ))}
-                            </TextField>
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <TextField
-                                fullWidth
-                                type="number"
-                                label="Amount ($)"
-                                value={formData.amount}
-                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                inputProps={{ step: '0.01', min: 0 }}
+                                label="Email"
+                                name="email"
+                                value={formData.email}
+                                disabled
+                                margin="normal"
+                                helperText="Email cannot be changed"
                             />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
                             <TextField
                                 fullWidth
-                                label="Paid By"
-                                placeholder="e.g., John"
-                                value={formData.paidBy}
-                                onChange={(e) => setFormData({ ...formData, paidBy: e.target.value })}
+                                label="Mobile Number"
+                                name="mobile"
+                                value={formData.mobile}
+                                onChange={handleChange}
+                                margin="normal"
                             />
-                        </Grid>
-                    </Grid>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-                    <Button onClick={handleAddExpense} variant="contained">Add</Button>
-                </DialogActions>
-            </Dialog>
+                            <Button type="submit" variant="contained" fullWidth sx={{ mt: 3 }}>
+                                Update Profile
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+            </Box>
         </Container>
     );
 };
@@ -1230,6 +1350,7 @@ const WeatherPage = () => {
     const navigate = useNavigate();
     const { showSnackbar } = useSnackbar();
     const { itineraries } = useItinerary();
+    const { currentUser } = useAuth();
     const [selectedItinerary, setSelectedItinerary] = useState('');
     const [weather, setWeather] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1280,6 +1401,12 @@ const WeatherPage = () => {
     const forecast = weatherData.forecast || [];
     const summary = weatherData.summary || {};
 
+    // Filter active itineraries for dropdown
+    const today = new Date().toISOString().split('T')[0];
+    const activeItineraries = itineraries.filter(it => it.endDate >= today);
+    const myItineraries = activeItineraries.filter(it => it.creatorEmail === currentUser?.email);
+    const availableItineraries = activeItineraries.filter(it => it.creatorEmail !== currentUser?.email);
+
     return (
         <Container maxWidth="lg">
             <Box sx={{ py: 4 }}>
@@ -1311,7 +1438,14 @@ const WeatherPage = () => {
                                     sx={{ mb: 2 }}
                                 >
                                     <MenuItem value="">-- Choose Itinerary --</MenuItem>
-                                    {itineraries.map(it => (
+                                    {myItineraries.length > 0 && <ListSubheader>My Itineraries</ListSubheader>}
+                                    {myItineraries.map(it => (
+                                        <MenuItem key={it.id} value={it.id}>
+                                            {it.destination} ({it.startDate})
+                                        </MenuItem>
+                                    ))}
+                                    {availableItineraries.length > 0 && <ListSubheader>Available Tours</ListSubheader>}
+                                    {availableItineraries.map(it => (
                                         <MenuItem key={it.id} value={it.id}>
                                             {it.destination} ({it.startDate})
                                         </MenuItem>
@@ -1400,26 +1534,38 @@ const WeatherPage = () => {
 // 1. AI-Powered Itinerary Generation
 const AIItineraryGenerator = ({ itinerary }) => {
     const [generating, setGenerating] = useState(false);
-    const [suggestions, setSuggestions] = useState([]);
+    const [generatedPlan, setGeneratedPlan] = useState(null);
+    const [inputs, setInputs] = useState({
+        destination: itinerary?.destination || '',
+        days: itinerary?.duration || 3,
+        budget: itinerary?.budget || 1000,
+        interests: itinerary?.interests || []
+    });
 
     const handleGenerateAI = async () => {
         setGenerating(true);
         try {
-            const response = await fetch('http://localhost:5000/api/ai/test', {
+            // Use the new /api/ai/generate endpoint
+            const response = await fetch('http://localhost:5000/api/ai/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    destination: itinerary?.destination || 'Paris',
-                    budget: itinerary?.budget || 2000,
-                    interests: itinerary?.interests || ['Culture', 'Food']
+                    destination: inputs.destination,
+                    days: inputs.days,
+                    budget: inputs.budget,
+                    interests: inputs.interests
                 })
             });
             const data = await response.json();
-            setSuggestions([data.message || 'Generated suggestions for your trip']);
-            setGenerating(false);
+            if (data.success) {
+                setGeneratedPlan(data.data);
+            } else {
+                alert('AI Generation Failed: ' + data.message);
+            }
         } catch (error) {
             console.error('AI generation error:', error);
-            setSuggestions(['Error generating suggestions']);
+            alert('Failed to connect to AI service');
+        } finally {
             setGenerating(false);
         }
     };
@@ -1427,23 +1573,60 @@ const AIItineraryGenerator = ({ itinerary }) => {
     return (
         <Card sx={{ mb: 2, border: '2px solid #FFD700' }}>
             <CardContent>
-                <Typography variant="h6" gutterBottom>✨ AI-Powered Recommendations</Typography>
+                <Typography variant="h6" gutterBottom>✨ AI-Powered Itinerary Generator</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Get personalized recommendations based on your interests and budget
+                    Generate a personalized day-by-day plan using AI.
                 </Typography>
+
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={6}>
+                        <TextField
+                            label="Destination"
+                            fullWidth size="small"
+                            value={inputs.destination}
+                            onChange={(e) => setInputs({ ...inputs, destination: e.target.value })}
+                        />
+                    </Grid>
+                    <Grid item xs={3}>
+                        <TextField
+                            label="Days"
+                            type="number" fullWidth size="small"
+                            value={inputs.days}
+                            onChange={(e) => setInputs({ ...inputs, days: parseInt(e.target.value) })}
+                        />
+                    </Grid>
+                    <Grid item xs={3}>
+                        <TextField
+                            label="Budget ($)"
+                            type="number" fullWidth size="small"
+                            value={inputs.budget}
+                            onChange={(e) => setInputs({ ...inputs, budget: parseInt(e.target.value) })}
+                        />
+                    </Grid>
+                </Grid>
+
                 <Button
                     variant="contained"
                     fullWidth
                     onClick={handleGenerateAI}
                     disabled={generating}
-                    sx={{ mb: 2 }}
+                    sx={{ mb: 2, background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)', color: 'white' }}
                 >
-                    {generating ? 'Generating...' : 'Generate AI Suggestions'}
+                    {generating ? 'Designing your trip...' : 'Generate Itinerary ✨'}
                 </Button>
-                {suggestions.length > 0 && (
-                    <Paper sx={{ p: 2, backgroundColor: '#fffaf0' }}>
-                        {suggestions.map((sugg, idx) => (
-                            <Typography key={idx} variant="body2">{sugg}</Typography>
+
+                {generatedPlan && (
+                    <Paper sx={{ p: 2, backgroundColor: '#fffaf0', maxHeight: '400px', overflowY: 'auto' }}>
+                        <Typography variant="h6" color="primary">{generatedPlan.summary}</Typography>
+                        {generatedPlan.daily_plan?.map((day, idx) => (
+                            <Box key={idx} sx={{ mt: 2, p: 1, borderLeft: '3px solid #FF8E53', pl: 2 }}>
+                                <Typography variant="subtitle1" fontWeight="bold">Day {day.day}: {day.theme}</Typography>
+                                {day.activities.map((act, actIdx) => (
+                                    <Typography key={actIdx} variant="body2" sx={{ ml: 1 }}>
+                                        • <strong>{act.time}</strong>: {act.activity} (${act.cost_estimate})
+                                    </Typography>
+                                ))}
+                            </Box>
                         ))}
                     </Paper>
                 )}
@@ -1606,35 +1789,124 @@ const SmartPackingAssistant = ({ weather = 'sunny' }) => {
 };
 
 // 8. Chat/Collaboration Features
+// 8. Chat/Collaboration Features
 const CollaborationChat = ({ itinerary }) => {
-    const [messages, setMessages] = useState([
-        { user: 'Alice', text: 'Let\'s meet at the Eiffel Tower!', time: '10:30 AM' },
-        { user: 'You', text: 'Sounds good! What time?', time: '10:35 AM' },
-        { user: 'Bob', text: 'I\'ll be there by noon', time: '10:40 AM' }
-    ]);
+    const { showSnackbar } = useSnackbar();
+    const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [user, setUser] = useState(localStorage.getItem('userEmail') || 'Traveler'); // Simple user identity
+    const chatContainerRef = React.useRef(null);
 
-    const handleSendMessage = () => {
-        if (newMessage.trim()) {
-            setMessages([...messages, { user: 'You', text: newMessage, time: new Date().toLocaleTimeString() }]);
+    // Fetch messages
+    const fetchMessages = async () => {
+        if (!itinerary?.id) return;
+        try {
+            const response = await api.get(`/itinerary/${itinerary.id}/chat`);
+            if (response.data.success) {
+                setMessages(response.data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching chat messages:', error);
+        }
+    };
+
+    // Initial fetch and polling
+    useEffect(() => {
+        fetchMessages();
+        const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
+        return () => clearInterval(interval);
+    }, [itinerary?.id]);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !itinerary?.id) return;
+
+        try {
+            const payload = {
+                user: user,
+                text: newMessage
+            };
+
+            // Optimistic update
+            const tempMessage = {
+                ...payload,
+                timestamp: new Date().toISOString(),
+                id: 'temp-' + Date.now()
+            };
+            setMessages([...messages, tempMessage]);
             setNewMessage('');
+
+            await api.post(`/itinerary/${itinerary.id}/chat`, payload);
+            fetchMessages(); // Refresh to get server timestamp/ID
+        } catch (error) {
+            console.error('Error sending message:', error);
+            showSnackbar('Failed to send message', 'error');
         }
     };
 
     return (
-        <Card sx={{ mb: 2 }}>
-            <CardContent>
-                <Typography variant="h6" gutterBottom>💬 Trip Collaboration - {itinerary?.destination || 'Trip Chat'}</Typography>
-                <Paper sx={{ p: 2, minHeight: '200px', maxHeight: '300px', overflowY: 'auto', mb: 2, backgroundColor: '#f9f9f9' }}>
-                    {messages.map((msg, idx) => (
-                        <Box key={idx} sx={{ mb: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="subtitle2" color="primary">{msg.user}</Typography>
-                                <Typography variant="caption" color="text.secondary">{msg.time}</Typography>
+        <Card sx={{ mb: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <Typography variant="h6" gutterBottom>
+                    💬 Trip Collaboration - {itinerary?.destination || 'Trip Chat'}
+                </Typography>
+
+                {/* Identity Input (for demo purposes) */}
+                <Box sx={{ mb: 2 }}>
+                    <TextField
+                        label="Your Name/Email"
+                        variant="standard"
+                        size="small"
+                        value={user}
+                        onChange={(e) => {
+                            setUser(e.target.value);
+                            localStorage.setItem('userEmail', e.target.value);
+                        }}
+                        fullWidth
+                    />
+                </Box>
+
+                <Paper
+                    ref={chatContainerRef}
+                    sx={{
+                        p: 2,
+                        flexGrow: 1,
+                        minHeight: '300px',
+                        maxHeight: '400px',
+                        overflowY: 'auto',
+                        mb: 2,
+                        backgroundColor: '#f9f9f9'
+                    }}
+                >
+                    {messages.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
+                            No messages yet. Start the conversation!
+                        </Typography>
+                    ) : (
+                        messages.map((msg, idx) => (
+                            <Box key={msg.id || idx} sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: msg.user === user ? 'flex-end' : 'flex-start' }}>
+                                <Box sx={{
+                                    maxWidth: '80%',
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    bgcolor: msg.user === user ? 'primary.main' : 'white',
+                                    color: msg.user === user ? 'white' : 'text.primary',
+                                    boxShadow: 1
+                                }}>
+                                    <Typography variant="body2">{msg.text}</Typography>
+                                </Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, px: 1 }}>
+                                    {msg.user} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </Typography>
                             </Box>
-                            <Typography variant="body2">{msg.text}</Typography>
-                        </Box>
-                    ))}
+                        ))
+                    )}
                 </Paper>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <TextField
@@ -1645,7 +1917,9 @@ const CollaborationChat = ({ itinerary }) => {
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                     />
-                    <Button variant="contained" onClick={handleSendMessage}>Send</Button>
+                    <Button variant="contained" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                        Send
+                    </Button>
                 </Box>
             </CardContent>
         </Card>

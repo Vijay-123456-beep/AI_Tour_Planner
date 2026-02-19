@@ -20,7 +20,7 @@ export const ExpenseProvider = ({ children }) => {
 
         // Try to fetch from backend
         try {
-            api.get('/api/expenses/').then(response => {
+            api.get('/expenses/').then(response => {
                 if (response.data.success && response.data.data.length > 0) {
                     setExpenses(response.data.data);
                 }
@@ -50,7 +50,7 @@ export const ExpenseProvider = ({ children }) => {
 
         // Try to save to backend
         try {
-            api.post('/api/expenses/add', newExpense).catch(err =>
+            api.post('/expenses/add', newExpense).catch(err =>
                 console.warn('Could not save expense to backend:', err)
             );
         } catch (error) {
@@ -66,7 +66,7 @@ export const ExpenseProvider = ({ children }) => {
 
         // Try to delete from backend
         try {
-            api.delete(`/api/expenses/${id}/delete`).catch(err =>
+            api.delete(`/expenses/${id}/delete`).catch(err =>
                 console.warn('Could not delete expense from backend:', err)
             );
         } catch (error) {
@@ -76,6 +76,11 @@ export const ExpenseProvider = ({ children }) => {
 
     const updateExpense = (id, updates) => {
         setExpenses(expenses.map(e => e.id === id ? { ...e, ...updates } : e));
+
+        // Call backend
+        api.put(`/expenses/${id}/update`, updates).catch(err =>
+            console.warn('Could not update expense in backend:', err)
+        );
     };
 
     const getExpense = (id) => {

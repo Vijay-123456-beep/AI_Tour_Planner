@@ -20,7 +20,7 @@ export const TransportProvider = ({ children }) => {
 
         // Try to fetch from backend
         try {
-            api.get('/api/transport/bookings').then(response => {
+            api.get('/transport/bookings').then(response => {
                 if (response.data.success && response.data.data.length > 0) {
                     setBookings(response.data.data);
                 }
@@ -50,7 +50,7 @@ export const TransportProvider = ({ children }) => {
 
         // Try to save to backend
         try {
-            api.post('/api/transport/book', newBooking).catch(err =>
+            api.post('/transport/book', newBooking).catch(err =>
                 console.warn('Could not save booking to backend:', err)
             );
         } catch (error) {
@@ -65,7 +65,7 @@ export const TransportProvider = ({ children }) => {
 
         // Try to delete from backend
         try {
-            api.delete(`/api/transport/bookings/${id}/delete`).catch(err =>
+            api.delete(`/transport/bookings/${id}/delete`).catch(err =>
                 console.warn('Could not delete booking from backend:', err)
             );
         } catch (error) {
@@ -75,6 +75,11 @@ export const TransportProvider = ({ children }) => {
 
     const updateBooking = (id, updates) => {
         setBookings(bookings.map(b => b.id === id ? { ...b, ...updates } : b));
+
+        // Call backend
+        api.put(`/transport/bookings/${id}/update`, updates).catch(err =>
+            console.warn('Could not update booking in backend:', err)
+        );
     };
 
     const getBooking = (id) => {
