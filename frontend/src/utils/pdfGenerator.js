@@ -27,7 +27,7 @@ export const downloadItineraryPDF = (itinerary, expenses = []) => {
         startY: yPos,
         head: [['Budget', 'Travelers', 'Interests']],
         body: [[
-            `$${itinerary.budget}`,
+            `₹${itinerary.budget}`,
             itinerary.travelers,
             (itinerary.interests || []).join(', ')
         ]],
@@ -39,14 +39,14 @@ export const downloadItineraryPDF = (itinerary, expenses = []) => {
 
     // 2. Expenses Summary
     const totalExpenses = expenses.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-    doc.text(`Expenses (Total: $${totalExpenses.toFixed(2)})`, 14, yPos);
+    doc.text(`Expenses (Total: ₹${totalExpenses.toFixed(2)})`, 14, yPos);
     yPos += 5;
 
     if (expenses.length > 0) {
         const expenseData = expenses.map(e => [
             e.description,
             e.category,
-            `$${parseFloat(e.amount).toFixed(2)}`,
+            `₹${parseFloat(e.amount).toFixed(2)}`,
             e.paidBy || '-'
         ]);
 

@@ -46,6 +46,30 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async () => {
+        try {
+            // Simulate Google OAuth delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            const mockGoogleUser = {
+                email: 'google.user@gmail.com',
+                fullName: 'Google User',
+                mobile: '9876543210',
+                password: 'google-oauth-sim-entry' // Backend bypass or mock
+            };
+
+            // First try to login, if fails, register
+            try {
+                return await login(mockGoogleUser.email, mockGoogleUser.password);
+            } catch (e) {
+                await register(mockGoogleUser);
+                return await login(mockGoogleUser.email, mockGoogleUser.password);
+            }
+        } catch (error) {
+            throw new Error('Google Sign-In simulation failed');
+        }
+    };
+
     const logout = () => {
         setCurrentUser(null);
         localStorage.removeItem('authToken');
@@ -54,7 +78,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, loading, login, register, logout }}>
+        <AuthContext.Provider value={{ currentUser, loading, login, register, googleLogin, logout }}>
             {children}
         </AuthContext.Provider>
     );

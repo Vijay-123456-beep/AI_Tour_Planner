@@ -6,6 +6,7 @@ export const itineraryService = {
         try {
             const response = await api.post('/itinerary/create', {
                 destination: itineraryData.destination,
+                source: itineraryData.source || '',
                 start_date: itineraryData.startDate,
                 end_date: itineraryData.endDate,
                 budget: parseFloat(itineraryData.budget),

@@ -21,6 +21,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
+import FlightIcon from '@mui/icons-material/Flight';
+import TrainIcon from '@mui/icons-material/Train';
+import DirectionsBusIcon from '@mui/icons-material/DirectionsBus';
 import { fetchWeatherForecast, getWeatherRecommendations } from '../services/weatherService';
 import { itineraryService } from '../services/itineraryService';
 import api from '../services/api';
@@ -28,6 +31,10 @@ import ExpenseAnalytics from '../components/ExpenseAnalytics';
 import ItineraryMap from '../components/ItineraryMap';
 import { downloadItineraryPDF } from '../utils/pdfGenerator';
 import DownloadIcon from '@mui/icons-material/Download';
+import CameraAltIcon from '@mui/icons-material/CameraAlt';
+import { aiService } from '../services/aiService';
+import CircularProgress from '@mui/material/CircularProgress';
+import AIRecommendationsPage from './AIRecommendationsPage';
 
 const ItineraryListPage = () => {
     const navigate = useNavigate();
@@ -76,7 +83,7 @@ const ItineraryListPage = () => {
                         <strong>Dates:</strong> {itinerary.startDate} to {itinerary.endDate}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" paragraph>
-                        <strong>Budget:</strong> ${itinerary.budget}
+                        <strong>Budget:</strong> ₹{itinerary.budget}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" paragraph>
                         <strong>Travelers:</strong> {itinerary.travelers}
@@ -237,7 +244,7 @@ const ItineraryDetailPage = () => {
                             </Grid>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="body2" opacity={0.9}>Budget</Typography>
-                                <Typography variant="h6">${itinerary.budget}</Typography>
+                                <Typography variant="h6">₹{itinerary.budget}</Typography>
                             </Grid>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="body2" opacity={0.9}>Travelers</Typography>
@@ -245,7 +252,7 @@ const ItineraryDetailPage = () => {
                             </Grid>
                             <Grid item xs={12} sm={6} md={3}>
                                 <Typography variant="body2" opacity={0.9}>Total Expenses</Typography>
-                                <Typography variant="h6">${totalAmount.toFixed(2)}</Typography>
+                                <Typography variant="h6">₹{totalAmount.toFixed(2)}</Typography>
                             </Grid>
                         </Grid>
                         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 3 }}>
@@ -259,7 +266,12 @@ const ItineraryDetailPage = () => {
                 {/* Map Section */}
                 <Card sx={{ mb: 3 }}>
                     <CardContent>
-                        <ItineraryMap destination={itinerary.destination} />
+                        <ItineraryMap
+                            source={itinerary.source}
+                            destination={itinerary.destination}
+                            startDate={itinerary.startDate}
+                            endDate={itinerary.endDate}
+                        />
                     </CardContent>
                 </Card>
 
@@ -287,7 +299,7 @@ const ItineraryDetailPage = () => {
                                                 {expenses.map(expense => (
                                                     <TableRow key={expense.id}>
                                                         <TableCell>{expense.description}</TableCell>
-                                                        <TableCell>${expense.amount}</TableCell>
+                                                        <TableCell>₹{expense.amount}</TableCell>
                                                         <TableCell>{expense.category}</TableCell>
                                                         <TableCell>
                                                             <Button size="small" color="error">Delete</Button>
@@ -329,7 +341,7 @@ const ItineraryDetailPage = () => {
                                                         <TableCell>{booking.type || booking.transportType}</TableCell>
                                                         <TableCell>{booking.pickupLocation} → {booking.dropLocation}</TableCell>
                                                         <TableCell>{booking.date}</TableCell>
-                                                        <TableCell>${booking.price}</TableCell>
+                                                        <TableCell>₹{booking.price}</TableCell>
                                                     </TableRow>
                                                 ))}
                                             </TableBody>
@@ -381,6 +393,7 @@ const ItineraryCreatePage = () => {
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         destination: '',
+        source: '',
         startDate: '',
         endDate: '',
         travelers: '1',
@@ -430,6 +443,7 @@ const ItineraryCreatePage = () => {
 
         itineraryService.createItinerary({
             destination: formData.destination,
+            source: formData.source,
             startDate: formData.startDate,
             endDate: formData.endDate,
             budget: formData.budget,
@@ -443,6 +457,7 @@ const ItineraryCreatePage = () => {
                 addItinerary({
                     id: createdItinerary.id,
                     destination: createdItinerary.destination,
+                    source: createdItinerary.source,
                     startDate: createdItinerary.start_date,
                     endDate: createdItinerary.end_date,
                     budget: createdItinerary.budget,
@@ -458,6 +473,7 @@ const ItineraryCreatePage = () => {
                 // Reset form
                 setFormData({
                     destination: '',
+                    source: '',
                     startDate: '',
                     endDate: '',
                     travelers: '1',
@@ -497,6 +513,18 @@ const ItineraryCreatePage = () => {
                 <Card sx={{ p: 3 }}>
                     <form onSubmit={handleSubmit}>
                         <Grid container spacing={3}>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Starting From *"
+                                    placeholder="e.g., Delhi, London, San Francisco"
+                                    name="source"
+                                    value={formData.source}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </Grid>
+
                             {/* Destination */}
                             <Grid item xs={12}>
                                 <TextField
@@ -639,7 +667,7 @@ const TransportBookingPage = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
     const [formData, setFormData] = useState({
-        type: 'jeep',
+        type: 'airplane',
         pickupLocation: '',
         dropoffLocation: '',
         date: '',
@@ -648,6 +676,9 @@ const TransportBookingPage = () => {
     });
 
     const transportOptions = [
+        { type: 'airplane', label: 'Plane', basePrice: 5000, icon: <FlightIcon /> },
+        { type: 'train', label: 'Train', basePrice: 1500, icon: <TrainIcon /> },
+        { type: 'bus', label: 'Bus', basePrice: 800, icon: <DirectionsBusIcon /> },
         { type: 'jeep', label: 'Jeep', basePrice: 150, icon: <DirectionsCarIcon /> },
         { type: 'bike', label: 'Bike', basePrice: 50, icon: <TwoWheelerIcon /> },
         { type: 'cab', label: 'Cab', basePrice: 80, icon: <DirectionsCarIcon /> }
@@ -918,7 +949,7 @@ const TransportBookingPage = () => {
                             <TextField
                                 fullWidth
                                 type="number"
-                                label="Price ($)"
+                                label="Price (₹)"
                                 placeholder="Leave empty for base price"
                                 value={formData.price}
                                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
@@ -954,6 +985,7 @@ const ExpenseTrackerPage = () => {
         paidBy: '',
         category: 'accommodation'
     });
+    const [scanningReceipt, setScanningReceipt] = useState(false);
 
     const categories = ['accommodation', 'food', 'transport', 'activities', 'misc'];
 
@@ -1026,6 +1058,29 @@ const ExpenseTrackerPage = () => {
         });
     };
 
+    const handleScanReceipt = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setScanningReceipt(true);
+        try {
+            const result = await aiService.scanReceipt(file);
+            if (result.success) {
+                setFormData({
+                    ...formData,
+                    description: result.data.description,
+                    amount: result.data.amount.toString(),
+                    category: result.data.category.toLowerCase()
+                });
+                showSnackbar('Receipt scanned and details auto-filled!', 'success');
+            }
+        } catch (error) {
+            showSnackbar(`Scanning failed: ${error}`, 'error');
+        } finally {
+            setScanningReceipt(false);
+        }
+    };
+
     const selectedItineraryData = itineraries.find(i => String(i.id) === String(selectedItinerary));
     const { totalAmount } = selectedItinerary ? calculateSplits(String(selectedItinerary), ['Traveler 1', 'Traveler 2']) : { totalAmount: 0, splits: {} };
 
@@ -1083,7 +1138,7 @@ const ExpenseTrackerPage = () => {
                                 <Card sx={{ backgroundColor: '#e3f2fd' }}>
                                     <CardContent>
                                         <Typography color="textSecondary" gutterBottom>Total Expenses</Typography>
-                                        <Typography variant="h5">${totalAmount.toFixed(2)}</Typography>
+                                        <Typography variant="h5">₹{totalAmount.toFixed(2)}</Typography>
                                     </CardContent>
                                 </Card>
                             </Grid>
@@ -1092,7 +1147,7 @@ const ExpenseTrackerPage = () => {
                                     <CardContent>
                                         <Typography color="textSecondary" gutterBottom>Per Person</Typography>
                                         <Typography variant="h5">
-                                            ${selectedItineraryData ? (totalAmount / parseInt(selectedItineraryData.travelers)).toFixed(2) : '0.00'}
+                                            ₹{selectedItineraryData ? (totalAmount / parseInt(selectedItineraryData.travelers)).toFixed(2) : '0.00'}
                                         </Typography>
                                     </CardContent>
                                 </Card>
@@ -1145,7 +1200,7 @@ const ExpenseTrackerPage = () => {
                                                         <TableRow key={expense.id || index}>
                                                             <TableCell>{expense.description}</TableCell>
                                                             <TableCell sx={{ textTransform: 'capitalize' }}>{expense.category}</TableCell>
-                                                            <TableCell>${expense.amount.toFixed(2)}</TableCell>
+                                                            <TableCell>₹{expense.amount.toFixed(2)}</TableCell>
                                                             <TableCell>{expense.paidBy}</TableCell>
                                                             <TableCell>
                                                                 <Button
@@ -1175,9 +1230,27 @@ const ExpenseTrackerPage = () => {
                             </Grid>
                         </Box>
 
-                        {/* Add Expense Dialog */}
                         <Dialog open={openDialog} onClose={resetForm} maxWidth="sm" fullWidth>
-                            <DialogTitle>{isEditing ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
+                            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {isEditing ? 'Edit Expense' : 'Add Expense'}
+                                {!isEditing && (
+                                    <Button
+                                        component="label"
+                                        variant="outlined"
+                                        size="small"
+                                        startIcon={scanningReceipt ? <CircularProgress size={16} /> : <CameraAltIcon />}
+                                        disabled={scanningReceipt}
+                                    >
+                                        {scanningReceipt ? 'Scanning...' : 'Scan Receipt'}
+                                        <input
+                                            type="file"
+                                            hidden
+                                            accept="image/*"
+                                            onChange={handleScanReceipt}
+                                        />
+                                    </Button>
+                                )}
+                            </DialogTitle>
                             <DialogContent sx={{ pt: 2 }}>
                                 <Grid container spacing={2}>
                                     <Grid item xs={12}>
@@ -1206,7 +1279,7 @@ const ExpenseTrackerPage = () => {
                                         <TextField
                                             fullWidth
                                             type="number"
-                                            label="Amount ($)"
+                                            label="Amount (₹)"
                                             value={formData.amount}
                                             onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                                             inputProps={{ step: '0.01', min: 0 }}
@@ -1247,6 +1320,9 @@ const ProfilePage = () => {
         mobile: currentUser?.mobile || ''
     });
 
+    const [buddyMatches, setBuddyMatches] = useState(null);
+    const [findingBuddies, setFindingBuddies] = useState(false);
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
@@ -1273,47 +1349,117 @@ const ProfilePage = () => {
         }
     };
 
+    const handleFindBuddies = async () => {
+        setFindingBuddies(true);
+        try {
+            // Mock interests for demo
+            const interests = ['adventure', 'photography', 'foodie'];
+            const result = await aiService.getBuddyMatches(interests, 'adventurous');
+            setBuddyMatches(result.matches);
+            showSnackbar('Found potential travel buddies!', 'success');
+        } catch (error) {
+            showSnackbar(`Error: ${error}`, 'error');
+        } finally {
+            setFindingBuddies(false);
+        }
+    };
+
     return (
-        <Container maxWidth="sm">
+        <Container maxWidth="md">
             <Box sx={{ py: 4 }}>
                 <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dashboard')} sx={{ mb: 3 }}>
                     Back
                 </Button>
-                <Card>
-                    <CardContent>
-                        <Typography variant="h5" gutterBottom>My Profile 👤</Typography>
-                        <form onSubmit={handleSubmit}>
-                            <TextField
-                                fullWidth
-                                label="Full Name"
-                                name="fullName"
-                                value={formData.fullName}
-                                onChange={handleChange}
-                                margin="normal"
-                            />
-                            <TextField
-                                fullWidth
-                                label="Email"
-                                name="email"
-                                value={formData.email}
-                                disabled
-                                margin="normal"
-                                helperText="Email cannot be changed"
-                            />
-                            <TextField
-                                fullWidth
-                                label="Mobile Number"
-                                name="mobile"
-                                value={formData.mobile}
-                                onChange={handleChange}
-                                margin="normal"
-                            />
-                            <Button type="submit" variant="contained" fullWidth sx={{ mt: 3 }}>
-                                Update Profile
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+
+                <Grid container spacing={3}>
+                    <Grid item xs={12} md={6}>
+                        <Card>
+                            <CardContent>
+                                <Typography variant="h5" gutterBottom>My Profile 👤</Typography>
+                                <form onSubmit={handleSubmit}>
+                                    <TextField
+                                        fullWidth
+                                        label="Full Name"
+                                        name="fullName"
+                                        value={formData.fullName}
+                                        onChange={handleChange}
+                                        margin="normal"
+                                    />
+                                    <TextField
+                                        fullWidth
+                                        label="Email"
+                                        name="email"
+                                        value={formData.email}
+                                        disabled
+                                        margin="normal"
+                                        helperText="Email cannot be changed"
+                                    />
+                                    <TextField
+                                        fullWidth
+                                        label="Mobile Number"
+                                        name="mobile"
+                                        value={formData.mobile}
+                                        onChange={handleChange}
+                                        margin="normal"
+                                    />
+                                    <Button type="submit" variant="contained" fullWidth sx={{ mt: 3 }}>
+                                        Update Profile
+                                    </Button>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} md={6}>
+                        <Card sx={{ height: '100%', bgcolor: '#f0f4f8' }}>
+                            <CardContent>
+                                <Typography variant="h6" gutterBottom>🤝 Travel Buddy Match</Typography>
+                                <Typography variant="body2" color="text.secondary" paragraph>
+                                    Find travelers with similar interests and plan your next big trip together!
+                                </Typography>
+
+                                <Button
+                                    variant="outlined"
+                                    fullWidth
+                                    onClick={handleFindBuddies}
+                                    disabled={findingBuddies}
+                                    sx={{ mb: 3 }}
+                                >
+                                    {findingBuddies ? <CircularProgress size={24} /> : 'Find My Travel Buddies ✨'}
+                                </Button>
+
+                                {buddyMatches && (
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        {buddyMatches.map((buddy, idx) => (
+                                            <Card key={idx} sx={{ bgcolor: 'white' }}>
+                                                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                                                        <Typography variant="subtitle1" fontWeight="bold">
+                                                            {buddy.name}
+                                                        </Typography>
+                                                        <Chip
+                                                            label={`${buddy.match_score}% Match`}
+                                                            size="small"
+                                                            color="primary"
+                                                            variant="outlined"
+                                                        />
+                                                    </Box>
+                                                    <Typography variant="caption" color="text.secondary" display="block">
+                                                        Interests: {buddy.interests.join(', ')}
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                                                        "{buddy.reason}"
+                                                    </Typography>
+                                                    <Button size="small" sx={{ mt: 1 }}>Connect</Button>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </Box>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                </Grid>
             </Box>
         </Container>
     );
@@ -1570,7 +1716,7 @@ const AIItineraryGenerator = ({ itinerary }) => {
                     </Grid>
                     <Grid item xs={3}>
                         <TextField
-                            label="Budget ($)"
+                            label="Budget (₹)"
                             type="number" fullWidth size="small"
                             value={inputs.budget}
                             onChange={(e) => setInputs({ ...inputs, budget: parseInt(e.target.value) })}
@@ -1596,7 +1742,7 @@ const AIItineraryGenerator = ({ itinerary }) => {
                                 <Typography variant="subtitle1" fontWeight="bold">Day {day.day}: {day.theme}</Typography>
                                 {day.activities.map((act, actIdx) => (
                                     <Typography key={actIdx} variant="body2" sx={{ ml: 1 }}>
-                                        • <strong>{act.time}</strong>: {act.activity} (${act.cost_estimate})
+                                        • <strong>{act.time}</strong>: {act.activity} (₹{act.cost_estimate})
                                     </Typography>
                                 ))}
                             </Box>
@@ -1932,6 +2078,195 @@ const CollaborationChat = ({ itinerary }) => {
     );
 };
 
+const MemoriesPage = () => {
+    const navigate = useNavigate();
+    const { showSnackbar } = useSnackbar();
+    const { itineraries } = useItinerary();
+    const { currentUser } = useAuth();
+    const [selectedItinerary, setSelectedItinerary] = useState('');
+    const [narrative, setNarrative] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    // Passport state
+    const [landmarkInput, setLandmarkInput] = useState('');
+    const [stamps, setStamps] = useState(() => {
+        const saved = localStorage.getItem('passport_stamps');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [collecting, setCollecting] = useState(false);
+
+    useEffect(() => {
+        localStorage.setItem('passport_stamps', JSON.stringify(stamps));
+    }, [stamps]);
+
+    const handleGenerateMemories = async () => {
+        if (!selectedItinerary) {
+            showSnackbar('Please select an itinerary', 'error');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const itinerary = itineraries.find(i => String(i.id) === String(selectedItinerary));
+            const activities = itinerary.activities?.map(a => a.name) || [itinerary.theme || 'Exploring'];
+
+            const result = await aiService.getTripNarrative(itinerary.destination, activities);
+            setNarrative(result);
+            showSnackbar('Memory Mosaic created!', 'success');
+        } catch (error) {
+            showSnackbar(`Error: ${error}`, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCollectStamp = async (e) => {
+        e.preventDefault();
+        if (!landmarkInput) return;
+
+        setCollecting(true);
+        try {
+            const result = await aiService.collectStamp(landmarkInput);
+            setStamps([...stamps, result]);
+            setLandmarkInput('');
+            showSnackbar(`New stamp collected: ${result.stamp_name}!`, 'success');
+        } catch (error) {
+            showSnackbar(`Error: ${error}`, 'error');
+        } finally {
+            setCollecting(false);
+        }
+    };
+
+    const myItineraries = itineraries.filter(it => it.creatorEmail === currentUser?.email);
+
+    return (
+        <Container maxWidth="lg">
+            <Box sx={{ py: 4 }}>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/dashboard')} sx={{ mb: 3 }}>
+                    Back
+                </Button>
+
+                <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>📸 Memory Mosaic</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                    Preserve your travel stories with AI-generated digital scrapbooks.
+                </Typography>
+
+                <Grid container spacing={4}>
+                    <Grid item xs={12} md={4}>
+                        <Card>
+                            <CardContent>
+                                <Typography variant="h6" gutterBottom>Recall Your Trip</Typography>
+                                <TextField
+                                    fullWidth
+                                    select
+                                    label="Choose a Trip"
+                                    value={selectedItinerary}
+                                    onChange={(e) => setSelectedItinerary(e.target.value)}
+                                    size="small"
+                                    sx={{ mb: 2 }}
+                                >
+                                    <MenuItem value="">-- Select Itinerary --</MenuItem>
+                                    {myItineraries.map(it => (
+                                        <MenuItem key={it.id} value={it.id}>
+                                            {it.destination} ({it.startDate})
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    onClick={handleGenerateMemories}
+                                    disabled={loading || !selectedItinerary}
+                                    sx={{ background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)' }}
+                                >
+                                    {loading ? <CircularProgress size={24} /> : 'Create Digital Scrapbook'}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+
+                    <Grid item xs={12} md={8}>
+                        {narrative ? (
+                            <Box>
+                                <Paper sx={{ p: 4, bgcolor: '#fdf5e6', border: '1px solid #deb887', borderRadius: 4, mb: 4 }}>
+                                    <Typography variant="h5" color="primary" sx={{ fontFamily: '"Georgia", serif', fontStyle: 'italic', mb: 2 }}>
+                                        The Story of {narrative.destination}
+                                    </Typography>
+                                    <Typography variant="body1" sx={{ lineHeight: 1.8, fontSize: '1.1rem' }}>
+                                        {narrative.narrative}
+                                    </Typography>
+                                </Paper>
+
+                                <Typography variant="h6" gutterBottom>✨ Magic Moments</Typography>
+                                <Grid container spacing={2} sx={{ mb: 4 }}>
+                                    {narrative.highlights && narrative.highlights.map((highlight, idx) => (
+                                        <Grid item xs={12} sm={4} key={idx}>
+                                            <Card sx={{ height: '100%', bgcolor: '#fff' }}>
+                                                <CardContent>
+                                                    <Box sx={{ color: 'secondary.main', mb: 1 }}>🌟</Box>
+                                                    <Typography variant="body2">{highlight}</Typography>
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+                            </Box>
+                        ) : (
+                            <Paper sx={{ p: 10, textAlign: 'center', bgcolor: '#f5f5f5', border: '2px dashed #ccc', mb: 4 }}>
+                                <Typography color="text.secondary">Select a past trip to relive the magic.</Typography>
+                            </Paper>
+                        )}
+
+                        {/* Digital Passport Section */}
+                        <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold', mt: 4 }}>📖 Digital Passport</Typography>
+                        <Card sx={{ mb: 4, bgcolor: '#f0f4f8' }}>
+                            <CardContent>
+                                <Typography variant="h6" gutterBottom>Collect a New Stamp</Typography>
+                                <Box component="form" onSubmit={handleCollectStamp} sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                                    <TextField
+                                        label="Landmark Visited"
+                                        size="small"
+                                        fullWidth
+                                        value={landmarkInput}
+                                        onChange={(e) => setLandmarkInput(e.target.value)}
+                                        placeholder="e.g., Eiffel Tower, Taj Mahal"
+                                    />
+                                    <Button type="submit" variant="contained" disabled={collecting || !landmarkInput}>
+                                        {collecting ? <CircularProgress size={24} /> : 'Collect 🏅'}
+                                    </Button>
+                                </Box>
+
+                                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>Your Stamps ({stamps.length})</Typography>
+                                <Grid container spacing={2}>
+                                    {stamps.length === 0 ? (
+                                        <Grid item xs={12}>
+                                            <Typography variant="body2" color="text.secondary" align="center">Your passport is empty. Visit landmarks to earn stamps!</Typography>
+                                        </Grid>
+                                    ) : (
+                                        stamps.map((stamp, idx) => (
+                                            <Grid item xs={12} sm={6} key={idx}>
+                                                <Paper sx={{ p: 2, borderLeft: `5px solid ${stamp.color || '#3f51b5'}`, bgcolor: 'white' }}>
+                                                    <Typography variant="subtitle2" sx={{ color: stamp.color || '#3f51b5', fontWeight: 'bold' }}>
+                                                        {stamp.stamp_name}
+                                                    </Typography>
+                                                    <Typography variant="h6" sx={{ fontSize: '1rem' }}>{stamp.landmark}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {stamp.story}
+                                                    </Typography>
+                                                </Paper>
+                                            </Grid>
+                                        ))
+                                    )}
+                                </Grid>
+                            </CardContent>
+                        </Card>
+                    </Grid>
+                </Grid>
+            </Box>
+        </Container>
+    );
+};
+
 export {
     ItineraryListPage,
     ItineraryDetailPage,
@@ -1941,6 +2276,7 @@ export {
     TransportBookingPage,
     ExpenseTrackerPage,
     WeatherPage,
+    MemoriesPage,
     AIItineraryGenerator,
     RealTimeTransportAvailability,
     GroupTripPlanning,
@@ -1948,5 +2284,6 @@ export {
     LocalProviderDirectory,
     ExpenseSplittingCalculator,
     SmartPackingAssistant,
-    CollaborationChat
+    CollaborationChat,
+    AIRecommendationsPage
 };

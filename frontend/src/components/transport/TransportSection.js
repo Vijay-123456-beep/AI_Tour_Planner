@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Card, 
-  CardContent, 
-  CardActions, 
-  Button, 
-  Grid, 
-  TextField, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  Grid,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   FormHelperText,
   Divider,
   Chip,
@@ -34,6 +34,9 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
 import LocalTaxiIcon from '@mui/icons-material/LocalTaxi';
+import FlightIcon from '@mui/icons-material/Flight';
+import TrainIcon from '@mui/icons-material/Train';
+import DirectionsBusIcon from '@mui/icons-material/DirectionsBus';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
 const TransportSection = ({ destination, onTransportBooked }) => {
@@ -56,6 +59,13 @@ const TransportSection = ({ destination, onTransportBooked }) => {
         return <LocalTaxiIcon color="primary" fontSize="large" />;
       case 'bike':
         return <TwoWheelerIcon color="primary" fontSize="large" />;
+      case 'airplane':
+      case 'flight':
+        return <FlightIcon color="primary" fontSize="large" />;
+      case 'train':
+        return <TrainIcon color="primary" fontSize="large" />;
+      case 'bus':
+        return <DirectionsBusIcon color="primary" fontSize="large" />;
       default:
         return <DirectionsCarIcon color="primary" fontSize="large" />;
     }
@@ -63,7 +73,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
 
   const fetchTransportOptions = async () => {
     if (!destination) return;
-    
+
     setLoading(true);
     try {
       const response = await api.get('/api/transport/options', {
@@ -74,7 +84,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
           travelers: travelers
         }
       });
-      
+
       if (response.data.success) {
         setTransportOptions(response.data.data);
       }
@@ -91,7 +101,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
       showSnackbar('Please log in to book transport', 'warning');
       return;
     }
-    
+
     try {
       const response = await api.post('/api/transport/book', {
         provider_id: option.id,
@@ -99,7 +109,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
         end_date: format(endDate, 'yyyy-MM-dd'),
         travelers: travelers
       });
-      
+
       if (response.data.success) {
         setBookingDetails(response.data.data);
         setBookingDialogOpen(true);
@@ -109,7 +119,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
     } catch (error) {
       console.error('Error booking transport:', error);
       showSnackbar(
-        error.response?.data?.error || 'Failed to book transport', 
+        error.response?.data?.error || 'Failed to book transport',
         'error'
       );
     }
@@ -120,7 +130,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
       const timer = setTimeout(() => {
         fetchTransportOptions();
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
   }, [destination, startDate, endDate, travelers]);
@@ -139,11 +149,11 @@ const TransportSection = ({ destination, onTransportBooked }) => {
         <DirectionsCarIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
         Transport Options for {destination}
       </Typography>
-      
+
       <Typography variant="body1" color="text.secondary" paragraph>
         We've found local transport providers that can help you explore {destination} and surrounding areas.
       </Typography>
-      
+
       <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <DatePicker
@@ -161,7 +171,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
             renderInput={(params) => <TextField {...params} size="small" />}
           />
         </LocalizationProvider>
-        
+
         <TextField
           label="Travelers"
           type="number"
@@ -172,7 +182,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
           inputProps={{ min: 1 }}
         />
       </Box>
-      
+
       {loading ? (
         <Typography>Loading transport options...</Typography>
       ) : transportOptions.length > 0 ? (
@@ -190,28 +200,28 @@ const TransportSection = ({ destination, onTransportBooked }) => {
                       ₹{option.price_per_day}/day
                     </Typography>
                   </Box>
-                  
+
                   <Typography variant="body2" color="text.secondary" paragraph>
                     {option.description}
                   </Typography>
-                  
+
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                    <Chip 
-                      icon={<PhoneIcon fontSize="small" />} 
-                      label={option.contact} 
-                      size="small" 
+                    <Chip
+                      icon={<PhoneIcon fontSize="small" />}
+                      label={option.contact}
+                      size="small"
                       variant="outlined"
                     />
-                    <Chip 
-                      label={`Max ${option.max_capacity} travelers`} 
-                      size="small" 
+                    <Chip
+                      label={`Max ${option.max_capacity} travelers`}
+                      size="small"
                       variant="outlined"
                     />
                     {option.features?.map((feature, index) => (
-                      <Chip 
-                        key={index} 
-                        label={feature} 
-                        size="small" 
+                      <Chip
+                        key={index}
+                        label={feature}
+                        size="small"
                         variant="outlined"
                         color="primary"
                       />
@@ -224,8 +234,8 @@ const TransportSection = ({ destination, onTransportBooked }) => {
                       <InfoOutlinedIcon />
                     </IconButton>
                   </Tooltip>
-                  <Button 
-                    variant="contained" 
+                  <Button
+                    variant="contained"
                     size="small"
                     onClick={() => handleBookTransport(option)}
                     disabled={!currentUser}
@@ -242,9 +252,9 @@ const TransportSection = ({ destination, onTransportBooked }) => {
           <Typography variant="body1" color="text.secondary">
             No transport options found for the selected dates. Try adjusting your search criteria.
           </Typography>
-          <Button 
-            variant="outlined" 
-            color="primary" 
+          <Button
+            variant="outlined"
+            color="primary"
             sx={{ mt: 2 }}
             onClick={fetchTransportOptions}
           >
@@ -252,9 +262,9 @@ const TransportSection = ({ destination, onTransportBooked }) => {
           </Button>
         </Box>
       )}
-      
-      <Dialog 
-        open={bookingDialogOpen} 
+
+      <Dialog
+        open={bookingDialogOpen}
         onClose={() => setBookingDialogOpen(false)}
         maxWidth="sm"
         fullWidth
@@ -269,7 +279,7 @@ const TransportSection = ({ destination, onTransportBooked }) => {
               <Typography variant="body1" paragraph>
                 Your transport has been successfully booked for your trip to {destination}.
               </Typography>
-              
+
               <Box sx={{ my: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary">
                   Booking Details:
@@ -287,8 +297,8 @@ const TransportSection = ({ destination, onTransportBooked }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBookingDialogOpen(false)}>Close</Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             color="primary"
             onClick={() => {
               setBookingDialogOpen(false);

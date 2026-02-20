@@ -57,6 +57,7 @@ in_memory_db = {
 
 def create_app():
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
     
     # Configuration
     app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key')
@@ -88,18 +89,13 @@ def create_app():
     else:
         print("[INFO] Using in-memory storage (fallback)")
     
-    # API endpoint for OpenRouter AI integration
-    @app.route('/api/ai/test', methods=['POST'])
-    def test_openrouter():
-        """Test OpenRouter API integration"""
+    def _call_openrouter(prompt, system_prompt="You are a helpful travel assistant."):
+        """Helper to call OpenRouter API"""
         import requests
         try:
             api_key = app.config.get('OPENROUTER_API_KEY')
             if not api_key:
-                return jsonify({"error": "OpenRouter API key not configured"}), 400
-            
-            data = request.get_json()
-            prompt = data.get('prompt', 'Hello, provide a travel recommendation')
+                return {"error": "OpenRouter API key not configured"}
             
             response = requests.post(
                 f"{app.config['OPENROUTER_BASE_URL']}/chat/completions",
@@ -110,26 +106,282 @@ def create_app():
                 },
                 json={
                     "model": "openai/gpt-3.5-turbo",
-                    "messages": [{"role": "user", "content": prompt}]
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ]
                 },
                 timeout=30
             )
             
             if response.status_code == 200:
-                return jsonify(response.json()), 200
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                # Try to parse JSON if the response is expected to be JSON
+                import json
+                try:
+                    # Clean up markdown code blocks if present
+                    if "```json" in content:
+                        content = content.split("```json")[1].split("```")[0].strip()
+                    elif "```" in content:
+                        content = content.split("```")[1].split("```")[0].strip()
+                    return json.loads(content)
+                except:
+                    return {"content": content}
             else:
-                return jsonify({"error": response.text}), response.status_code
+                return {"error": f"API Error: {response.text}"}
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    
-    # Basic route
-    @app.route('/api/health', methods=['GET'])
-    def health_check():
-        return jsonify({
-            "status": "healthy", 
-            "message": "AI Tour Planner API is running",
-            "mode": "development"
-        }), 200
+            return {"error": str(e)}
+
+    # API endpoint for OpenRouter AI integration (Original test route)
+    @app.route('/api/ai/test', methods=['POST'])
+    def test_openrouter():
+        """Test OpenRouter API integration"""
+        data = request.get_json()
+        prompt = data.get('prompt', 'Hello, provide a travel recommendation')
+        result = _call_openrouter(prompt)
+        return jsonify(result)
+
+    # --- CORE AI BACKEND ROUTES (Fixing 404s) ---
+
+    @app.route('/api/ai/generate-itinerary', methods=['POST'])
+    def ai_generate_itinerary():
+        """Real AI Itinerary Generation"""
+        data = request.get_json()
+        dest = data.get('destination', 'Unknown')
+        start = data.get('start_date', '')
+        end = data.get('end_date', '')
+        budget = data.get('budget', 50000)
+        interests = ", ".join(data.get('interests', []))
+        style = data.get('travel_style', 'balanced')
+        
+        prompt = f"""Generate a {style} travel itinerary for {dest} from {start} to {end}.
+        Budget: ₹{budget}. Interests: {interests}.
+        Return ONLY valid JSON with this structure:
+        {{
+          "destination": "{dest}",
+          "duration_days": 3,
+          "total_budget": {budget},
+          "ai_score": 95,
+          "summary": "Brief summary",
+          "statistics": {{ "budget_utilization": 85 }},
+          "itinerary": [
+            {{ "day": 1, "date": "YYYY-MM-DD", "activities": [{{ "name": "Activity", "duration": 2, "cost": 500 }}] }}
+          ]
+        }}"""
+        
+        result = _call_openrouter(prompt, "You are an expert travel planner. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/recommend-destinations', methods=['POST'])
+    def ai_recommend_destinations():
+        """AI Destination Recommendations"""
+        data = request.get_json()
+        interests = ", ".join(data.get('interests', []))
+        budget = data.get('budget', 50000)
+        
+        prompt = f"Based on interests in {interests} and a budget of ₹{budget}, suggest 3 destinations. Return JSON: {{'recommendations': [{{'destination': 'Name', 'score': 90, 'difficulty': 'Easy', 'estimated_cost': 20000, 'best_season': ['Winter']}}]}}"
+        
+        result = _call_openrouter(prompt, "Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/optimize-budget', methods=['POST'])
+    def ai_optimize_budget():
+        """AI Budget Optimization"""
+        data = request.get_json()
+        dest = data.get('destination')
+        budget = data.get('current_budget')
+        
+        prompt = f"Optimize a trip to {dest} with budget ₹{budget}. Return JSON: {{'current_budget': {budget}, 'minimum_recommended_budget': 40000, 'cost_breakdown': {{'stay': 15000, 'food': 10000}}, 'recommendations': ['Tip 1', 'Tip 2']}}"
+        
+        result = _call_openrouter(prompt, "Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/activity-suggestions', methods=['GET'])
+    def ai_activity_suggestions():
+        """AI Activity Suggestions"""
+        dest = request.args.get('destination')
+        interests = request.args.get('interests', '')
+        
+        result = _call_openrouter(prompt, "Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/cultural-compass', methods=['POST'])
+    def ai_cultural_compass():
+        """Feature 1: AI Cultural Etiquette Guide"""
+        data = request.get_json()
+        dest = data.get('destination')
+        
+        prompt = f"""Provide sensitive and useful cultural advice for a tourist visiting {dest}.
+        Include:
+        1. General Etiquette (Greetings, gestures)
+        2. Dress Code (Religious sites, public spaces)
+        3. Tipping Culture (Restaurants, services)
+        4. "Must Avoid" Taboos
+        Return ONLY valid JSON with categories and bullet points.
+        Format: {{ "destination": "{dest}", "etiquette": [], "dress_code": [], "tipping": [], "taboos": [] }}"""
+        
+        result = _call_openrouter(prompt, "You are a cultural sensitivity expert. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/receipt-ocr', methods=['POST'])
+    def ai_receipt_ocr():
+        """Feature 2: Smart Receipt Scanner (Mock OCR)"""
+        import random
+        from datetime import datetime
+        mock_receipts = [
+            {"amount": 1250.50, "currency": "INR", "category": "Food", "description": "Dinner at Local Bistro", "date": datetime.now().strftime("%Y-%m-%d")},
+            {"amount": 450.00, "currency": "INR", "category": "Transport", "description": "Uber Ride", "date": datetime.now().strftime("%Y-%m-%d")},
+            {"amount": 3200.00, "currency": "INR", "category": "Stay", "description": "Hotel Laundry & Mini-bar", "date": datetime.now().strftime("%Y-%m-%d")},
+            {"amount": 150.00, "currency": "INR", "category": "Others", "description": "Museum Tickets", "date": datetime.now().strftime("%Y-%m-%d")}
+        ]
+        selected = random.choice(mock_receipts)
+        return jsonify({"success": True, "data": selected})
+
+    @app.route('/api/ai/eco-score', methods=['POST'])
+    def ai_eco_score():
+        """Feature 3: Eco-Trip Sustainability Score"""
+        data = request.get_json()
+        transport = data.get('transport_type', 'car')
+        dest = data.get('destination', 'Unknown')
+        prompt = f"""Calculate the estimated carbon footprint for a trip to {dest} using {transport}.
+        Provide:
+        1. Estimated CO2 emission in kg.
+        2. Sustainability rating (1-10, where 10 is most eco-friendly).
+        3. Three "Green Alternatives" or tips for this specific trip.
+        Return ONLY valid JSON.
+        Format: {{ "co2_kg": 250, "rating": 7, "alternatives": ["Tip 1", "Tip 2", "Tip 3"] }}"""
+        result = _call_openrouter(prompt, "You are an environmental sustainability expert. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/trip-summary-narrative', methods=['POST'])
+    def ai_trip_summary_narrative():
+        """Feature 4: Memory Mosaic (AI Trip Highlights)"""
+        data = request.get_json()
+        dest = data.get('destination', 'Unknown')
+        activities = ", ".join(data.get('activities', []))
+        
+        prompt = f"""Write a beautiful, nostalgic, and story-driven summary of a trip to {dest}.
+        The traveler did the following: {activities}.
+        Provide:
+        1. A narrative "Story of your trip" (max 200 words).
+        2. Three key "Memory Highlights".
+        Return ONLY valid JSON.
+        Format: {{ "destination": "{dest}", "narrative": "...", "highlights": ["...", "...", "..."] }}"""
+        
+        result = _call_openrouter(prompt, "You are a professional travel writer and storyteller. Return raw JSON only.")
+        
+        # Ensure destination matches input (prevent AI hallucination like "everytime")
+        if isinstance(result, dict) and not result.get('error'):
+            result['destination'] = dest
+            
+        return jsonify(result)
+
+    @app.route('/api/ai/buddy-match', methods=['POST'])
+    def ai_buddy_match():
+        """Feature 5: Travel Buddy Match (Social)"""
+        data = request.get_json()
+        interests = ", ".join(data.get('interests', []))
+        style = data.get('travel_style', 'balanced')
+        
+        prompt = f"""Suggest three mock "Travel Buddies" for someone who loves {interests} and has a {style} travel style.
+        For each buddy, provide:
+        1. A name.
+        2. A match percentage (80-99%).
+        3. A "Why we matched" reason.
+        4. Their top 2 travel interests.
+        Return ONLY valid JSON.
+        Format: {{ "matches": [ {{ "name": "...", "match_score": 92, "reason": "...", "interests": ["...", "..."] }} ] }}"""
+        
+        result = _call_openrouter(prompt, "You are a social travel coordinator. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/translate', methods=['POST'])
+    def ai_translate():
+        """Feature 6: Live Translation Whisper"""
+        data = request.get_json()
+        text = data.get('text', '')
+        target_lang = data.get('target_lang', 'English')
+        
+        prompt = f"""Translate this text to {target_lang}: "{text}".
+        Provide ONLY the translated text in the response.
+        Return raw JSON: {{ "translated_text": "..." }}"""
+        
+        result = _call_openrouter(prompt, "You are a professional translator. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/emergency-help', methods=['POST'])
+    def ai_emergency_help():
+        """Feature 7: AI Emergency Rescue Beacon"""
+        data = request.get_json()
+        location = data.get('location', 'Unknown')
+        situation = data.get('situation', 'general emergency')
+        
+        prompt = f"""Provide emergency assistance info for a tourist in {location} facing this situation: {situation}.
+        Provide:
+        1. Local emergency numbers (Police, Ambulance).
+        2. A short "Distress Message" in the LOCAL language of {location} with English translation.
+        3. Three immediate "Next Steps" for safety.
+        Return ONLY valid JSON.
+        Format: {{ "numbers": {{ "police": "...", "ambulance": "..." }}, "distress_message": "...", "next_steps": ["...", "...", "..."] }}"""
+        
+        result = _call_openrouter(prompt, "You are an emergency response coordinator. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/collect-stamp', methods=['POST'])
+    def ai_collect_stamp():
+        """Feature 8: Gamified Landmarks (Digital Stamps)"""
+        data = request.get_json()
+        landmark = data.get('landmark', 'Unknown Landmark')
+        
+        prompt = f"""Generate a "Digital Passport Stamp" for visiting {landmark}.
+        Provide:
+        1. An evocative Stamp Name.
+        2. A "Hidden Story" or fun fact about this landmark (max 50 words).
+        3. A "Badge Theme" color (e.g., #FFD700).
+        Return ONLY valid JSON.
+        Format: {{ "landmark": "{landmark}", "stamp_name": "...", "story": "...", "color": "..." }}"""
+        
+        result = _call_openrouter(prompt, "You are a travel historian and gamification expert. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/foodie-finder', methods=['POST'])
+    def ai_foodie_finder():
+        """Feature 9: AI Foodie Finder (Allergy Safe)"""
+        data = request.get_json()
+        location = data.get('location', 'Unknown')
+        restrictions = ", ".join(data.get('restrictions', []))
+        
+        prompt = f"""Suggest three local dishes in {location} for someone with these dietary restrictions: {restrictions}.
+        For each dish, provide:
+        1. Dish Name.
+        2. Brief Description.
+        3. A "Safety Level" (e.g., Safe, Consult Chef).
+        4. Top 3 Ingredients.
+        Return ONLY valid JSON.
+        Format: {{ "recommendations": [ {{ "name": "...", "description": "...", "safety": "...", "ingredients": ["...", "...", "..."] }} ] }}"""
+        
+        result = _call_openrouter(prompt, "You are a culinary travel expert. Return raw JSON only.")
+        return jsonify(result)
+
+    @app.route('/api/ai/vr-preview', methods=['POST'])
+    def ai_vr_preview():
+        """Feature 10: Virtual Reality Pre-Trip Preview"""
+        data = request.get_json()
+        destination = data.get('destination', 'Unknown')
+        experience = data.get('experience', 'Exploring')
+        
+        prompt = f"""Generate a "Virtual Reality Descriptive Simulation" for {experience} in {destination}.
+        Provide:
+        1. Visuals: Describe the 360-degree view in vivid detail (max 60 words).
+        2. Sounds: Describe the ambient audio landscape.
+        3. Atmosphere: Describe the temperature, smells, and overall "vibe".
+        4. Immersive Tip: One thing to specifically "look at" or "interaction" to imagine.
+        Return ONLY valid JSON.
+        Format: {{ "destination": "{destination}", "experience": "{experience}", "visuals": "...", "sounds": "...", "atmosphere": "...", "tip": "..." }}"""
+        
+        result = _call_openrouter(prompt, "You are a VR experience designer and travel writer. Return raw JSON only.")
+        return jsonify(result)
     
     # Mock Itinerary Endpoints
     @app.route('/api/itinerary/create', methods=['POST', 'OPTIONS'])
@@ -144,6 +396,7 @@ def create_app():
             itinerary = {
                 "id": itinerary_id,
                 "destination": data.get('destination', ''),
+                "source": data.get('source', ''),
                 "start_date": data.get('start_date', ''),
                 "end_date": data.get('end_date', ''),
                 "startDate": data.get('startDate', data.get('start_date', '')),
@@ -615,7 +868,7 @@ def create_app():
         except Exception as e:
             return jsonify({"error": str(e)}), 400
     
-    @app.route('/api/expenses/', methods=['GET', 'OPTIONS'])
+    @app.route('/api/expenses', methods=['GET', 'OPTIONS'])
     def get_expenses():
         """Get all expenses"""
         if request.method == 'OPTIONS':
@@ -811,6 +1064,24 @@ def create_app():
         
         # Mock data (Ported from TransportService)
         options = [
+            {
+                'id': 'plain_001', 'type': 'airplane', 'name': 'IndiGo Flight', 'capacity': 180, 
+                'price_per_day': 5000, 'rating': 4.5, 'reviews': 1200, 
+                'availability': 'Available', 'features': ['Fastest', 'Meal Included', 'Insurance'],
+                'destination': destination
+            },
+            {
+                'id': 'train_001', 'type': 'train', 'name': 'Duronto Express (2AC)', 'capacity': 50, 
+                'price_per_day': 1500, 'rating': 4.2, 'reviews': 3450, 
+                'availability': 'Available', 'features': ['Sleeper', 'Meal Included', 'Comfortable'],
+                'destination': destination
+            },
+            {
+                'id': 'bus_001', 'type': 'bus', 'name': 'Luxury AC Sleeper Bus', 'capacity': 40, 
+                'price_per_day': 800, 'rating': 4.0, 'reviews': 890, 
+                'availability': 'Available', 'features': ['AC', 'Sleeper', 'USB Charging'],
+                'destination': destination
+            },
             {
                 'id': 'jeep_001', 'type': 'jeep', 'name': 'Toyota Fortuner', 'capacity': 7, 
                 'price_per_day': 150, 'rating': 4.8, 'reviews': 245, 

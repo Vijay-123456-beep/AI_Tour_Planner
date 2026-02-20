@@ -13,7 +13,7 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import { ItineraryListPage, ItineraryDetailPage, ItineraryCreatePage, ProfilePage, NotFoundPage, TransportBookingPage, ExpenseTrackerPage, WeatherPage } from './pages/index';
+import { ItineraryListPage, ItineraryDetailPage, ItineraryCreatePage, ProfilePage, NotFoundPage, TransportBookingPage, ExpenseTrackerPage, WeatherPage, MemoriesPage, AIRecommendationsPage } from './pages/index';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -190,6 +190,22 @@ function App() {
                         <ProtectedRoute>
                           <Layout>
                             <WeatherPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+
+                      <Route path="/memories" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <MemoriesPage />
+                          </Layout>
+                        </ProtectedRoute>
+                      } />
+
+                      <Route path="/recommendations" element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AIRecommendationsPage />
                           </Layout>
                         </ProtectedRoute>
                       } />

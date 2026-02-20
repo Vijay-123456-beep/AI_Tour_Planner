@@ -58,7 +58,7 @@ const ExpenseAnalytics = ({ expenses, budget }) => {
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                                    <Tooltip formatter={(value) => `₹${value.toFixed(2)}`} />
                                     <Legend />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -77,8 +77,8 @@ const ExpenseAnalytics = ({ expenses, budget }) => {
                                 <BarChart data={barData}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" />
-                                    <YAxis prefix="$" />
-                                    <Tooltip formatter={(value) => `$${value.toFixed(2)}`} />
+                                    <YAxis prefix="₹" />
+                                    <Tooltip formatter={(value) => `₹${value.toFixed(2)}`} />
                                     <Bar dataKey="amount" fill="#82ca9d">
                                         {barData.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={index === 0 ? '#FF8042' : '#00C49F'} />
@@ -88,7 +88,7 @@ const ExpenseAnalytics = ({ expenses, budget }) => {
                             </ResponsiveContainer>
                         </Box>
                         <Typography variant="body2" align="center" color="text.secondary" sx={{ mt: 2 }}>
-                            Total Budget: ${budget} | Spent: ${totalSpent.toFixed(2)}
+                            Total Budget: ₹{budget} | Spent: ₹{totalSpent.toFixed(2)}
                         </Typography>
                     </CardContent>
                 </Card>

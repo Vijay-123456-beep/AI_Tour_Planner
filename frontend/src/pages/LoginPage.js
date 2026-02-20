@@ -9,7 +9,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { login, register } = useAuth();
+    const { login, register, googleLogin } = useAuth();
     const { showSnackbar } = useSnackbar();
 
     const [isRegister, setIsRegister] = useState(false);
@@ -50,8 +50,17 @@ const LoginPage = () => {
         }
     };
 
-    const handleGoogleLogin = () => {
-        showSnackbar('Google Sign-In is currently in simulation mode. Please use standard email/password.', 'info');
+    const handleGoogleLogin = async () => {
+        setLoading(true);
+        try {
+            await googleLogin();
+            showSnackbar('Signed in with Google!', 'success');
+            navigate('/dashboard');
+        } catch (error) {
+            showSnackbar(error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
