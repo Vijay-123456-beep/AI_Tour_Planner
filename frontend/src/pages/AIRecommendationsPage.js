@@ -473,10 +473,10 @@ const AIRecommendationsPage = () => {
                                                             <Chip label={`Difficulty: ${rec.difficulty}`} />
                                                         </Box>
                                                         <Typography sx={{ mt: 1 }}>
-                                                            Est. Cost: ₹{rec.estimated_cost.toLocaleString()}
+                                                            Est. Cost: ₹{typeof rec?.estimated_cost === 'number' ? rec.estimated_cost.toLocaleString() : (rec?.estimated_cost || 0).toLocaleString()}
                                                         </Typography>
                                                         <Typography variant="body2" sx={{ mt: 1 }}>
-                                                            Best Season: {rec.best_season.join(', ')}
+                                                            Best Season: {(rec.best_season || []).join(', ')}
                                                         </Typography>
                                                     </CardContent>
                                                 </Card>
@@ -622,7 +622,7 @@ const AIRecommendationsPage = () => {
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Typography color="textSecondary">Total Budget</Typography>
-                                                <Typography variant="h6">₹{generatedItinerary.total_budget.toLocaleString()}</Typography>
+                                                <Typography variant="h6">₹{generatedItinerary?.total_budget?.toLocaleString() || '0'}</Typography>
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Typography color="textSecondary">AI Score</Typography>
@@ -630,7 +630,7 @@ const AIRecommendationsPage = () => {
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Typography color="textSecondary">Budget Utilization</Typography>
-                                                <Typography variant="h6">{generatedItinerary.statistics.budget_utilization}%</Typography>
+                                                <Typography variant="h6">{generatedItinerary.statistics?.budget_utilization || 0}%</Typography>
                                             </Grid>
                                         </Grid>
                                     </CardContent>
@@ -730,11 +730,11 @@ const AIRecommendationsPage = () => {
                                         <Grid container spacing={2}>
                                             <Grid item xs={6}>
                                                 <Typography color="textSecondary">Current Budget</Typography>
-                                                <Typography variant="h6">₹{optimizationResult.current_budget.toLocaleString()}</Typography>
+                                                <Typography variant="h6">₹{optimizationResult?.current_budget?.toLocaleString() || '0'}</Typography>
                                             </Grid>
                                             <Grid item xs={6}>
                                                 <Typography color="textSecondary">Recommended Budget</Typography>
-                                                <Typography variant="h6">₹{optimizationResult.minimum_recommended_budget.toLocaleString()}</Typography>
+                                                <Typography variant="h6">₹{optimizationResult?.minimum_recommended_budget?.toLocaleString() || '0'}</Typography>
                                             </Grid>
                                         </Grid>
                                     </CardContent>
@@ -754,12 +754,14 @@ const AIRecommendationsPage = () => {
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
-                                            {Object.entries(optimizationResult.cost_breakdown).map(([category, amount]) => (
+                                            {optimizationResult?.cost_breakdown && Object.entries(optimizationResult.cost_breakdown).map(([category, amount]) => (
                                                 <TableRow key={category}>
                                                     <TableCell sx={{ textTransform: 'capitalize' }}>{category}</TableCell>
-                                                    <TableCell align="right">₹{amount.toLocaleString()}</TableCell>
+                                                    <TableCell align="right">₹{amount?.toLocaleString() || '0'}</TableCell>
                                                     <TableCell align="right">
-                                                        {((amount / optimizationResult.current_budget) * 100).toFixed(1)}%
+                                                        {optimizationResult.current_budget > 0
+                                                            ? ((amount / optimizationResult.current_budget) * 100).toFixed(1)
+                                                            : '0.0'}%
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -937,7 +939,7 @@ const AIRecommendationsPage = () => {
                                     value={translationInputs.targetLang}
                                     onChange={(e) => setTranslationInputs({ ...translationInputs, targetLang: e.target.value })}
                                 >
-                                    {['Hindi', 'Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Arabic'].map(lang => (
+                                    {['Hindi', 'Telugu', 'Tamil', 'Kannada', 'Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Arabic'].map(lang => (
                                         <MenuItem key={lang} value={lang}>{lang}</MenuItem>
                                     ))}
                                 </TextField>
@@ -1000,7 +1002,7 @@ const AIRecommendationsPage = () => {
                                             </Box>
                                         )}
                                     >
-                                        {['Vegetarian', 'Vegan', 'Gluten-Free', 'Nut-Free', 'Halal', 'Kosher'].map(res => (
+                                        {['Vegetarian', 'Vegan', 'Non-Veg', 'Non-Vegetarian', 'Dairy-Free', 'Egg-Free', 'Sea-Food', 'Keto', 'Gluten-Free', 'Nut-Free', 'Halal', 'Kosher'].map(res => (
                                             <MenuItem key={res} value={res}>{res}</MenuItem>
                                         ))}
                                     </Select>

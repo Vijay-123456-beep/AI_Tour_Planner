@@ -1,0 +1,50 @@
+
+--- 2026-02-20 22:43:19.313928 ---
+PROMPT: Translate the following text to Telugu: "What is your name?".
+        
+        Strictly return ONLY ...
+RESULT: ```json
+{
+"translated_text": "మీ పేరేమిటి?"
+}
+```
+
+--- 2026-02-20 22:46:23.029173 ---
+PROMPT: Suggest three local dishes in Chennai for someone with these dietary restrictions: Non-Veg.
+        ...
+RESULT: ```json
+{
+  "recommendations": [
+    {
+      "name": "Chicken Chettinad",
+      "description": "A classic Tamil Nadu dish featuring chicken cooked in a spicy and aromatic gravy made with freshly ground spices and coconut.",
+      "safety": "Safe",
+      "ingredients": [
+        "Chicken",
+        "Red Chilies",
+        "Coconut"
+      ]
+    },
+    {
+      "name": "Fish Fry (Meen Varuval)",
+      "description": "Fish marinated in a blend of spices and shallow fried until crispy and golden brown. Popular street food and restaurant item.",
+      "safety": "Safe",
+      "ingredients": [
+        "Fish (Seer or Pomfret)",
+        "Chili Powder",
+        "Turmeric"
+      ]
+    },
+    {
+      "name": "Mutton Chukka",
+      "description": "Dry preparation of mutton cooked with onions, ginger, garlic, and a blend of spices. It is often served as a starter or a side dish.",
+      "safety": "Safe",
+      "ingredients": [
+        "Mutton",
+        "Onions",
+        "Ginger-Garlic Paste"
+      ]
+    }
+  ]
+}
+```
