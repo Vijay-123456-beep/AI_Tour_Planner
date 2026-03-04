@@ -1,77 +1,104 @@
-# AI-Powered Personalized Tour Planner
+# AI-Powered Personalized Tour Planner 🌍✈️
 
-A comprehensive travel planning platform that leverages AI to create personalized travel itineraries with social collaboration features, real-time updates, and smart packing recommendations.
+A complete travel planning ecosystem that leverages AI to create personalized travel itineraries, manage expenses, and provide real-time travel insights.
 
-## Features
+## ✨ Key Features
 
-- 🧠 AI-Powered Itinerary Generation
-- 👥 Social Collaboration & Cost Sharing
-- ⚡ Real-time Alerts & Adaptive Recommendations
-- 🎒 Dynamic Packing List Generator
-- 🗺️ Interactive Maps & Route Optimization
-- 🔐 Secure Authentication & User Profiles
+### 🧠 AI & Planning
+- **Smart Itinerary Generation**: Personalized trip plans powered by AI (OpenRouter/OpenAI).
+- **AI Recommendations**: Get destination, activity, and budget suggestions.
+- **Eco-Trip Sustainability**: Calculate and optimize your travel carbon footprint.
+- **Cultural Compass**: AI-driven cultural etiquette and travel tips.
 
-## Tech Stack
+### 💰 Financial Management
+- **Expense Tracking**: Log all your travel costs with cloud persistence.
+- **Splitwise-style Splitting**: Automatic cost distribution among travel companions.
+- **Smart Receipt Scanner**: AI-assisted OCR for quick expense logging.
 
-- **Frontend**: React.js with Material-UI
-- **Backend**: Python Flask
-- **Database**: Firebase (Authentication & Firestore)
-- **Maps**: Google Maps API
-- **AI/ML**: Python (scikit-learn, TensorFlow)
-- **Deployment**: Docker, Heroku/Netlify
+### 🚗 Logistics & Real-time
+- **Transport Hub**: Book jeeps, bikes, and cars with real-time availability.
+- **Weather Watch**: 6-day forecasts with automated packing checklists.
+- **Emergency Beacon**: AI-powered local emergency assistance and distress messaging.
 
-## Getting Started
+### 👥 Collaboration
+- **Real-time Interaction**: Integrated collaboration chat for group trips.
+- **Shared Itineraries**: Invite buddies and plan together.
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React.js 18, Material-UI (MUI), Context API.
+- **Backend**: Python Flask 2.3, Socket.IO for real-time features.
+- **Database**: MongoDB Atlas (Cloud) with local memory fallback.
+- **AI Engine**: OpenRouter (Gemini, Llama, GPT-4 fallback support).
+- **Communication**: JWT-based Authentication.
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v14+)
-- Python (3.8+)
-- Firebase account
-- Google Cloud Platform account (for Maps API)
+- Node.js (v16+)
+- Python (3.9+)
+- MongoDB Atlas account (or local MongoDB)
+- OpenRouter API Key
 
-### Installation
+### Installation & Setup
 
-1. Clone the repository
-2. Set up the backend:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd AI_Tour_Planner
+   ```
+
+2. **Configure Backend**
    ```bash
    cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+   # Create .env file with following:
+   # OPENROUTER_API_KEY=your_key
+   # MONGODB_URI=your_mongodb_uri
+   
+   python -m venv .venv
+   .\.venv\Scripts\activate  # On Linux/macOS: source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-3. Set up the frontend:
+3. **Configure Frontend**
    ```bash
-   cd frontend
+   cd ../frontend
    npm install
    ```
 
-4. Configure environment variables (see .env.example files)
+### Running the Application
 
-5. Run the development servers:
+1. **Start Backend (Terminal 1)**
    ```bash
-   # In backend directory
-   python app.py
-   
-   # In frontend directory
+   cd backend
+   python app_dev.py
+   ```
+   *Expected: `[SUCCESS] MongoDB Connected Successfully!`*
+
+2. **Start Frontend (Terminal 2)**
+   ```bash
+   cd frontend
    npm start
    ```
+   *Expected: App running on http://localhost:3000*
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 AI_Tour_Planner/
-├── backend/               # Flask server
-│   ├── app/              # Application package
-│   ├── config.py         # Configuration
-│   ├── requirements.txt  # Python dependencies
-│   └── app.py            # Application entry point
-├── frontend/             # React application
-│   ├── public/           # Static files
-│   └── src/              # React source code
-├── docs/                 # Documentation
-└── README.md             # This file
+├── backend/               # Flask API
+│   ├── app/              # Business logic & services
+│   ├── app_dev.py        # Main entry point (Dev/Prod)
+│   └── .env              # Configuration
+├── frontend/             # React App
+│   ├── src/
+│   │   ├── pages/        # All feature pages
+│   │   ├── contexts/     # Global state (Itinerary, Expense, etc.)
+│   │   └── services/     # API integration
+│   └── public/           # Static assets
+└── Technical_Documentation.md # Detailed API & Architecture
 ```
 
-## License
+## 📜 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see the LICENSE file for details.

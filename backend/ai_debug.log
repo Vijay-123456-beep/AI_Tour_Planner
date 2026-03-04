@@ -1,49 +1,115 @@
 
---- 2026-02-20 22:43:19.313928 ---
-PROMPT: Translate the following text to Telugu: "What is your name?".
-        
-        Strictly return ONLY ...
-RESULT: ```json
-{
-"translated_text": "మీ పేరేమిటి?"
-}
-```
-
---- 2026-02-20 22:46:23.029173 ---
-PROMPT: Suggest three local dishes in Chennai for someone with these dietary restrictions: Non-Veg.
-        ...
+--- 2026-03-04 13:20:20.871467 ---
+PROMPT: Based on interests in nature, wildlife and a budget of ₹35000, suggest 3 travel destinations in Indi...
 RESULT: ```json
 {
   "recommendations": [
     {
-      "name": "Chicken Chettinad",
-      "description": "A classic Tamil Nadu dish featuring chicken cooked in a spicy and aromatic gravy made with freshly ground spices and coconut.",
-      "safety": "Safe",
-      "ingredients": [
-        "Chicken",
-        "Red Chilies",
-        "Coconut"
-      ]
+      "destination": "Jim Corbett National Park, Uttarakhand",
+      "score": 92,
+      "difficulty": "Easy to Moderate",
+      "estimated_cost": 25000,
+      "best_season": ["Winter", "Early Summer"]
     },
     {
-      "name": "Fish Fry (Meen Varuval)",
-      "description": "Fish marinated in a blend of spices and shallow fried until crispy and golden brown. Popular street food and restaurant item.",
-      "safety": "Safe",
-      "ingredients": [
-        "Fish (Seer or Pomfret)",
-        "Chili Powder",
-        "Turmeric"
-      ]
+      "destination": "Bandhavgarh National Park, Madhya Pradesh",
+      "score": 88,
+      "difficulty": "Moderate",
+      "estimated_cost": 30000,
+      "best_season": ["Winter", "Summer"]
     },
     {
-      "name": "Mutton Chukka",
-      "description": "Dry preparation of mutton cooked with onions, ginger, garlic, and a blend of spices. It is often served as a starter or a side dish.",
-      "safety": "Safe",
-      "ingredients": [
-        "Mutton",
-        "Onions",
-        "Ginger-Garlic Paste"
-      ]
+      "destination": "Kaziranga National Park, Assam",
+      "score": 90,
+      "difficulty": "Easy",
+      "estimated_cost": 28000,
+      "best_season": ["Winter"]
+    }
+  ]
+}
+```
+
+--- 2026-03-04 13:21:09.977085 ---
+PROMPT: Based on interests in nature, wildlife and a budget of ₹35000, suggest 3 travel destinations in Indi...
+RESULT: ```json
+{
+  "recommendations": [
+    {
+      "destination": "Jim Corbett National Park, Uttarakhand",
+      "score": 92,
+      "difficulty": "Easy to Moderate",
+      "estimated_cost": 25000,
+      "best_season": ["October to June"]
+    },
+    {
+      "destination": "Kaziranga National Park, Assam",
+      "score": 88,
+      "difficulty": "Easy",
+      "estimated_cost": 30000,
+      "best_season": ["November to April"]
+    },
+    {
+      "destination": "Bandipur National Park, Karnataka",
+      "score": 85,
+      "difficulty": "Easy",
+      "estimated_cost": 20000,
+      "best_season": ["October to May"]
+    }
+  ]
+}
+```
+
+--- 2026-03-04 13:23:20.379274 ---
+PROMPT: Based on interests in culture, nature and a budget of ₹10000, suggest 3 travel destinations in India...
+RESULT: ```json
+{
+  "recommendations": [
+    {
+      "destination": "Khajuraho, Madhya Pradesh",
+      "score": 85,
+      "difficulty": "Easy",
+      "estimated_cost": 8000,
+      "best_season": [
+        "October",
+        "November",
+        "December",
+        "January",
+        "February",
+        "March"
+      ],
+      "description": "Famous for its ancient temples with intricate sculptures and a rich cultural heritage. Explore the magnificent architecture and enjoy the peaceful surroundings.",
+       "interests": ["culture", "history"]
+    },
+    {
+      "destination": "McLeod Ganj, Himachal Pradesh",
+      "score": 80,
+      "difficulty": "Moderate",
+      "estimated_cost": 7000,
+      "best_season": [
+        "March",
+        "April",
+        "May",
+        "June",
+        "September",
+        "October"
+      ],
+      "description": "Home to the Dalai Lama, offering stunning views of the Himalayas, vibrant Tibetan culture, and opportunities for trekking. Experience serenity and delve into Buddhist philosophy.",
+      "interests": ["culture", "nature", "spirituality"]
+    },
+    {
+      "destination": "Hampi, Karnataka",
+      "score": 75,
+      "difficulty": "Easy",
+      "estimated_cost": 9000,
+      "best_season": [
+        "October",
+        "November",
+        "December",
+        "January",
+        "February"
+      ],
+      "description": "A UNESCO World Heritage site, Hampi boasts magnificent ruins of the Vijayanagara Empire, unique landscapes, and a captivating blend of history and nature along the Tungabhadra River.",
+      "interests": ["culture", "history", "nature"]
     }
   ]
 }

@@ -170,7 +170,7 @@ def create_app():
                     print(f"ERROR: JSON Parsing failed: {str(e)}")
                     return {"content": content, "error": "Parsing failed"}
             else:
-                return {"error": f"API Error: {response.text}"}
+                return {"error": f"API Error: All models failed or returned empty content"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -213,23 +213,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are an expert travel planner. Return raw JSON only.")
         
-        # Fallback for itinerary
-        if not isinstance(result, dict) or 'itinerary' not in result:
-            fallback = {
-                "destination": dest,
-                "duration_days": 3,
-                "total_budget": budget,
-                "ai_score": 90,
-                "summary": f"A delightful trip through {dest}.",
-                "statistics": { "budget_utilization": 85 },
-                "itinerary": [
-                    { "day": 1, "date": start or "Day 1", "activities": [{ "name": "City Exploration", "duration": 4, "cost": budget * 0.1 }] },
-                    { "day": 2, "date": "Day 2", "activities": [{ "name": "Local Culture Hub", "duration": 3, "cost": budget * 0.15 }] },
-                    { "day": 3, "date": end or "Day 3", "activities": [{ "name": "Leisure & Shopping", "duration": 5, "cost": budget * 0.2 }] }
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/recommend-destinations', methods=['POST'])
@@ -246,19 +232,8 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a travel recommendation expert. Return raw JSON only.")
         
-        # Fallback if AI fails to provide recommendations
-        if not isinstance(result, dict) or 'recommendations' not in result or not result['recommendations']:
-            fallback = {
-                "recommendations": [
-                    {"destination": "Maredumilli, Andhra Pradesh", "score": 95, "difficulty": "Moderate", "estimated_cost": 15000, "best_season": ["Monsoon", "Winter"]},
-                    {"destination": "Araku Valley, Andhra Pradesh", "score": 92, "difficulty": "Easy", "estimated_cost": 12000, "best_season": ["Winter"]},
-                    {"destination": "Pondicherry", "score": 88, "difficulty": "Easy", "estimated_cost": 25000, "best_season": ["Winter", "Spring"]}
-                ]
-            }
-            # If there's an error in result, just return fallback, otherwise merge
-            if isinstance(result, dict) and result.get('error'):
-                return jsonify(fallback)
-            return jsonify(fallback)
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
 
         return jsonify(result)
 
@@ -276,26 +251,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a travel budget consultant. Return raw JSON only.")
         
-        # Fallback for budget optimization
-        if not isinstance(result, dict) or 'cost_breakdown' not in result:
-            fallback = {
-                "current_budget": budget,
-                "minimum_recommended_budget": budget * 0.8,
-                "cost_breakdown": {
-                    "stay": budget * 0.4,
-                    "food": budget * 0.2,
-                    "transport": budget * 0.2,
-                    "activities": budget * 0.1,
-                    "miscellaneous": budget * 0.1
-                },
-                "recommendations": [
-                    "Book accommodation in advance for better rates.",
-                    "Use public transport or shared cabs to save on travel.",
-                    "Eat at local eateries instead of tourist-trap restaurants."
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/activity-suggestions', methods=['GET'])
@@ -308,17 +266,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a local travel guide. Return raw JSON only.")
         
-        # Fallback for activities
-        if not isinstance(result, dict) or 'activities' not in result:
-            fallback = {
-                "activities": [
-                    { "name": f"Sightseeing in {dest}", "description": "Visit the iconic landmarks and local spots.", "cost": 1000 },
-                    { "name": "Local Cuisine Tour", "description": "Taste the authentic flavors of the region.", "cost": 1500 },
-                    { "name": "Nature Walk", "description": "Enjoy the peaceful surroundings and fresh air.", "cost": 500 }
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/cultural-compass', methods=['POST'])
@@ -338,17 +288,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a cultural sensitivity expert. Return raw JSON only.")
         
-        # Fallback for cultural compass
-        if not isinstance(result, dict) or 'etiquette' not in result:
-            fallback = {
-                "destination": dest,
-                "etiquette": ["Respect local customs and traditions.", "Greet people with a smile."],
-                "dress_code": ["Dress modestly when visiting religious sites.", "Comfortable walking shoes are recommended."],
-                "tipping": ["Tipping is appreciated but not mandatory.", "Check if a service charge is included in the bill."],
-                "taboos": ["Avoid talking loudly in public spaces.", "Don't take photos where prohibited."]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/receipt-ocr', methods=['POST'])
@@ -380,19 +322,9 @@ def create_app():
         Format: {{ "co2_kg": 250, "rating": 7, "alternatives": ["Tip 1", "Tip 2", "Tip 3"] }}"""
         result = _call_openrouter(prompt, "You are an environmental sustainability expert. Return raw JSON only.")
         
-        # Fallback for eco-score
-        if not isinstance(result, dict) or 'rating' not in result:
-            fallback = {
-                "co2_kg": 150,
-                "rating": 8,
-                "alternatives": [
-                    "Consider walking or cycling for short distances.",
-                    "Use public transport instead of private taxis.",
-                    "Choose eco-friendly accommodation with green certifications."
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/trip-summary-narrative', methods=['POST'])
@@ -411,6 +343,9 @@ def create_app():
         Format: {{ "destination": "{dest}", "narrative": "...", "highlights": ["...", "...", "..."] }}"""
         
         result = _call_openrouter(prompt, "You are a professional travel writer and storyteller. Return raw JSON only.")
+        
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
         
         # Ensure destination matches input (prevent AI hallucination like "everytime")
         if isinstance(result, dict) and not result.get('error'):
@@ -436,16 +371,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a social travel coordinator. Return raw JSON only.")
         
-        # Fallback for buddy match
-        if not isinstance(result, dict) or 'matches' not in result:
-            fallback = {
-                "matches": [
-                    { "name": "Rahul", "match_score": 95, "reason": "Shared interest in trekking and budget travel.", "interests": ["Trekking", "Nature"] },
-                    { "name": "Priya", "match_score": 88, "reason": "Loves exploring local food and culture.", "interests": ["Food", "History"] }
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/translate', methods=['POST'])
@@ -474,6 +402,9 @@ def create_app():
                 # If JSON parsing failed but we have content, the content is likely the raw translation
                 return jsonify({"translated_text": result['content'].strip()})
         
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+            
         # Fallback as last resort
         fallback = { "translated_text": f"[Translation of '{text}' to {target_lang}]" }
         return jsonify(fallback)
@@ -531,16 +462,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a culinary travel expert. Return raw JSON only.")
         
-        # Fallback for foodie finder
-        if not isinstance(result, dict) or 'recommendations' not in result:
-            fallback = {
-                "recommendations": [
-                    { "name": "Local Special Platter", "description": "A variety of local delicacies that meet your dietary needs.", "safety": "Highly Safe", "ingredients": ["Local herbs", "Organic spices", "Fresh produce"] },
-                    { "name": "Traditional Steamed Dish", "description": "A healthy and safe option prepared using traditional methods.", "safety": "Safe", "ingredients": ["Veggies", "Rice gems", "Mild spices"] }
-                ]
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
 
     @app.route('/api/ai/vr-preview', methods=['POST'])
@@ -561,16 +485,9 @@ def create_app():
         
         result = _call_openrouter(prompt, "You are a VR experience designer and travel writer. Return raw JSON only.")
         
-        # Fallback for VR preview
-        if not isinstance(result, dict) or 'visuals' not in result:
-            fallback = {
-                "visuals": f"A breathtaking 360-degree panorama of {destination}. You see vibrant colors and majestic architecture.",
-                "sounds": "The gentle hum of the city, distant laughter, and the soft rustle of wind.",
-                "atmosphere": "A warm, inviting breeze with a hint of local spices and fresh air.",
-                "tip": "Turn around to see the hidden alleyway decorated with local art."
-            }
-            return jsonify(fallback)
-            
+        if isinstance(result, dict) and result.get('error'):
+            return jsonify({"error": result['error']}), 500
+
         return jsonify(result)
     
     # Mock Itinerary Endpoints
